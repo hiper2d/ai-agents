@@ -1,3 +1,4 @@
+import { ModelRefusalError } from "../errors";
 import { toAnthropicEffort } from "../reasoning-effort";
 import { AbstractAgent } from "./abstract-agent";
 import { AIMessage, BotResponseError, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
@@ -317,6 +318,9 @@ export class ClaudeAgent extends AbstractAgent {
                 throw new Error(this.errorMessages.apiError(apiError));
             }
 
+            if ((response as any).stop_reason === 'refusal') {
+                throw new ModelRefusalError(this.model);
+            }
             if (!('content' in response) || !Array.isArray(response.content) || response.content.length === 0) {
                 throw new Error(this.errorMessages.emptyResponse);
             }
@@ -446,6 +450,9 @@ export class ClaudeAgent extends AbstractAgent {
                 throw new Error(this.errorMessages.apiError(apiError));
             }
 
+            if ((response as any).stop_reason === 'refusal') {
+                throw new ModelRefusalError(this.model);
+            }
             if (!('content' in response) || !Array.isArray(response.content) || response.content.length === 0) {
                 throw new Error(this.errorMessages.emptyResponse);
             }

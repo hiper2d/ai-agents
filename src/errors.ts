@@ -72,3 +72,18 @@ export class ModelQuotaExceededError extends ModelError {
         this.name = 'ModelQuotaExceededError';
     }
 }
+
+/**
+ * The model declined to answer: Anthropic returns `stop_reason: "refusal"` with no content
+ * blocks when its safety layer rejects the request as a whole. Not retryable as-is — the
+ * same prompt will refuse again — the caller has to change the prompt or the model.
+ * Observed 2026-08-30 on Claude Fable 5: a persona system prompt plus a narrated multi-turn
+ * history that ends by asking the character what it does refuses, while either half alone
+ * answers; Sonnet 5 and Opus 4.8 answer the same requests.
+ */
+export class ModelRefusalError extends ModelError {
+    constructor(modelType: string, message: string = `${modelType} refused to answer (stop_reason: refusal)`) {
+        super(message, modelType);
+        this.name = 'ModelRefusalError';
+    }
+}
