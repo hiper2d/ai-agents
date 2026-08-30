@@ -1,7 +1,7 @@
 import { ClaudeAgent } from './anthropic-agent';
 import { ModelRefusalError } from '../errors';
 import { SILENT_LOGGING, ReplySchema } from '../testing/fixtures';
-import type { AIMessage } from '../types';
+import { BotResponseError, type AIMessage } from '../types';
 
 /**
  * Anthropic signals a safety refusal as `stop_reason: "refusal"` with an empty content
@@ -30,11 +30,12 @@ describe('ClaudeAgent refusal handling', () => {
         expect(err.message).toMatch(/refused/);
     });
 
-    it('still reports a plain empty response as the generic error', async () => {
+    it('still reports a plain empty response as the wrapped generic error', async () => {
         const agent = new ClaudeAgent('Mira', 'instruction', 'claude-sonnet-5', 'key', false, SILENT_LOGGING);
         (agent as any).client = { messages: { create: async () => ({ id: 'msg', stop_reason: 'end_turn', content: [] }) } };
         const err = await agent.askText(MESSAGES).catch(e => e);
+        expect(err).toBeInstanceOf(BotResponseError);
         expect(err).not.toBeInstanceOf(ModelRefusalError);
-        expect(err.message).toMatch(/Empty response/);
+        expect(err.details).toMatch(/Empty response/);
     });
 });

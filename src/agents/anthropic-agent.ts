@@ -1,4 +1,4 @@
-import { ModelRefusalError } from "../errors";
+import { ModelError, ModelRefusalError } from "../errors";
 import { toAnthropicEffort } from "../reasoning-effort";
 import { AbstractAgent } from "./abstract-agent";
 import { AIMessage, BotResponseError, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
@@ -374,6 +374,12 @@ export class ClaudeAgent extends AbstractAgent {
             return [parsedData, thinkingContent, tokenUsage, anthropicThinkingSignature || undefined];
 
         } catch (error) {
+            // Typed model errors carry their own meaning (a refusal is not retryable and not
+            // an API failure) — let them through untouched, as GoogleAgent does with its
+            // ModelError family.
+            if (error instanceof ModelError) {
+                throw error;
+            }
             const errorDetails = error instanceof Error ? error.message : String(error);
 
             // Check if this is an API overload error (529) which is recoverable
@@ -495,6 +501,12 @@ export class ClaudeAgent extends AbstractAgent {
             return [textContent, thinkingContent, tokenUsage, anthropicThinkingSignature || undefined];
 
         } catch (error) {
+            // Typed model errors carry their own meaning (a refusal is not retryable and not
+            // an API failure) — let them through untouched, as GoogleAgent does with its
+            // ModelError family.
+            if (error instanceof ModelError) {
+                throw error;
+            }
             const errorDetails = error instanceof Error ? error.message : String(error);
 
             const isRecoverable = errorDetails.includes('overloaded_error') ||
