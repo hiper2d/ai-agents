@@ -1,3 +1,4 @@
+import { toGeminiEffort } from '../reasoning-effort';
 import { AbstractAgent } from "./abstract-agent";
 import { AIMessage, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -201,7 +202,7 @@ export class GoogleAgent extends AbstractAgent {
             if (this.enableThinking) {
                 config.thinkingConfig = {
                     includeThoughts: true,
-                    thinkingLevel: (this.reasoningEffort ?? 'low').toUpperCase()
+                    thinkingLevel: toGeminiEffort(this.reasoningEffort ?? 'low').toUpperCase()
                 };
             }
 
@@ -330,7 +331,7 @@ export class GoogleAgent extends AbstractAgent {
             if (this.enableThinking) {
                 config.thinkingConfig = {
                     includeThoughts: true,
-                    thinkingLevel: (this.reasoningEffort ?? 'low').toUpperCase()
+                    thinkingLevel: toGeminiEffort(this.reasoningEffort ?? 'low').toUpperCase()
                 };
             }
 

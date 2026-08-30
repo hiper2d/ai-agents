@@ -29,6 +29,7 @@ export * from './thinking-utils';
 
 // Model catalog + pricing tables
 export * from './catalog';
+export * from './reasoning-effort';
 
 // Token usage extraction. The provider wire-usage interface shares the name `TokenUsage`
 // with the core type in ./types, so it is re-exported here as `ProviderTokenUsage`.

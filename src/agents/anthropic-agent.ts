@@ -1,3 +1,4 @@
+import { toAnthropicEffort } from "../reasoning-effort";
 import { AbstractAgent } from "./abstract-agent";
 import { AIMessage, BotResponseError, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
 import { Anthropic } from '@anthropic-ai/sdk';
@@ -291,7 +292,7 @@ export class ClaudeAgent extends AbstractAgent {
                     // display: "summarized" is required to surface the reasoning — these models
                     // default to "omitted", which returns thinking blocks with an empty field.
                     (params as any).thinking = { type: "adaptive", display: "summarized" };
-                    (params as any).output_config = { effort: this.reasoningEffort ?? "high" };
+                    (params as any).output_config = { effort: toAnthropicEffort(this.reasoningEffort ?? "high") };
                 } else {
                     // Haiku 4.5 uses enabled thinking with budget
                     (params as any).thinking = { type: "enabled", budget_tokens: this.thinkingBudgetTokens ?? 1024 };
@@ -423,7 +424,7 @@ export class ClaudeAgent extends AbstractAgent {
             if (canUseThinking) {
                 if (usesAdaptiveThinking) {
                     (params as any).thinking = { type: "adaptive", display: "summarized" };
-                    (params as any).output_config = { effort: this.reasoningEffort ?? "high" };
+                    (params as any).output_config = { effort: toAnthropicEffort(this.reasoningEffort ?? "high") };
                 } else {
                     (params as any).thinking = { type: "enabled", budget_tokens: this.thinkingBudgetTokens ?? 1024 };
                     params.temperature = 1;

@@ -99,23 +99,31 @@ export type ModelTag = 'very-fast' | 'fast' | 'slow' | 'very-slow' | 'extremely-
 
 export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
+/**
+ * What a catalog entry produces. Only text agents exist today; TTS, STT and image
+ * generation are planned as subpath exports, and their catalog entries will carry the
+ * matching modality so consumers can filter (a text-model picker must not list a voice).
+ * Omitted means 'text'.
+ */
+export type Modality = 'text' | 'tts' | 'stt' | 'image';
+
 export interface ModelConfig {
     displayName: string;
     modelApiName: string;
     apiKeyName: string;
+    modality?: Modality; // Default 'text'; see Modality.
     hasThinking: boolean;
     temperature?: number; // Override agent default temperature; omit to use the agent's built-in default
     // Reasoning-depth knobs. Providers speak two dialects, so there are two fields; a model uses
     // at most one of them, and omitting it means "provider default" (e.g. GPT-5 runs at OpenAI's
     // default medium effort, Fugu/Grok at their fixed "high").
     // ReasoningEffort is the superset of provider vocabularies — each provider accepts only its
-    // own slice, and the agent passes the value through verbatim, so pick one the model's API
-    // supports: Anthropic adaptive thinking takes low|medium|high|xhigh|max, OpenAI takes
-    // minimal|low|medium|high|xhigh, Gemini 3.x takes minimal|low|medium|high (sent uppercase
-    // as thinkingLevel; 3.1 Pro and 3.7 Flash reject 'minimal'), Fugu takes high|xhigh,
-    // Z.AI GLM-5.3 takes low|high|max ONLY (the generic Z.AI API reference lists a 7-value
-    // scale, but glm-5.3 rejects anything else with a 400), DeepSeek V4 takes low|high|max
-    // (medium is aliased to high; default high).
+    // own slice (see reasoning-effort.ts for the per-provider types), and every effort-aware
+    // agent clamps the value to the nearest level its API takes before sending. So a catalog
+    // pin or a per-call override can use any level; prefer one the model natively supports
+    // (Anthropic adaptive low|medium|high|xhigh|max, OpenAI minimal|low|medium|high|xhigh,
+    // Gemini 3.x minimal|low|medium|high — 3.1 Pro and 3.7 Flash reject 'minimal' —, Fugu
+    // high|xhigh, GLM-5.3 and DeepSeek V4 low|high|max).
     reasoningEffort?: ReasoningEffort; // Effort-based APIs (Anthropic adaptive thinking, Gemini 3.x)
     thinkingBudgetTokens?: number; // Budget-based APIs (Anthropic enabled thinking, Qwen thinking_budget)
     // Per-request output ceiling, overriding DEFAULT_MAX_OUTPUT_TOKENS. Only set it for models
@@ -471,7 +479,15 @@ export function getModelConfigByApiName(modelApiName: string, hasThinking?: bool
  * Model pricing configuration
  * All prices are in USD per 1,000,000 tokens
  */
+/**
+ * What a price is quoted per. Text models bill per million tokens; the planned TTS entries
+ * bill per million characters, STT per minute of audio, image models per image (or per
+ * output token, in which case they stay 'tokens'). Omitted means 'tokens'.
+ */
+export type PricingUnit = 'tokens' | 'characters' | 'minutes' | 'images';
+
 export interface ModelPricing {
+    unit?: PricingUnit;      // Default 'tokens'; see PricingUnit. Per-million for tokens/characters.
     inputPrice: number;      // Price per million input tokens
     outputPrice: number;     // Price per million output tokens
     cacheHitPrice?: number;  // Optional: Price per million cached tokens (if applicable)

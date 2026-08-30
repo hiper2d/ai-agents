@@ -1,4 +1,5 @@
 import { AbstractAgent } from "./abstract-agent";
+import { toDeepSeekEffort } from "../reasoning-effort";
 import { mergeThinking, stripInlineThinking } from "../thinking-utils";
 import OpenAI from "openai";
 import { AIMessage, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
@@ -86,7 +87,7 @@ export class DeepSeekV2Agent extends AbstractAgent {
         const effort = this.reasoningEffort;
         return {
             thinking: { type: 'enabled' },
-            ...(effort ? { reasoning_effort: effort } : {}),
+            ...(effort ? { reasoning_effort: toDeepSeekEffort(effort) } : {}),
         };
     }
 
