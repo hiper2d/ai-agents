@@ -18,14 +18,14 @@ const describeLive = apiKey ? describe : describe.skip;
 
 const apiName = (id: string) => SupportedAiModels[id].modelApiName;
 
-function makeAgent(modelId: string = LLM_CONSTANTS.DEEPSEEK_V4_PRO, enableThinking = true): DeepSeekV2Agent {
+function makeAgent(modelId: string = LLM_CONSTANTS.DEEPSEEK_PRO, enableThinking = true): DeepSeekV2Agent {
     return new DeepSeekV2Agent('Mira', assistantPrompt(), apiName(modelId), apiKey!, 0.7, enableThinking, SILENT_LOGGING);
 }
 
 describeLive('DeepSeekV2Agent (live)', () => {
     describe('askWithZodSchema', () => {
         it('Pro with thinking returns a schema-valid reply, reasoning content and usage', async () => {
-            const agent = makeAgent(LLM_CONSTANTS.DEEPSEEK_V4_PRO, true);
+            const agent = makeAgent(LLM_CONSTANTS.DEEPSEEK_PRO, true);
             const [response, thinking, tokenUsage] = await agent.askWithZodSchema(ReplySchema, sampleHistory());
 
             expect(typeof response.reply).toBe('string');
@@ -42,7 +42,7 @@ describeLive('DeepSeekV2Agent (live)', () => {
             const agent = new DeepSeekV2Agent(
                 'Narrator',
                 'You are the narrator of a collaborative text adventure. When asked for JSON, reply with a single JSON object and nothing else.',
-                apiName(LLM_CONSTANTS.DEEPSEEK_V4_FLASH),
+                apiName(LLM_CONSTANTS.DEEPSEEK_FLASH),
                 apiKey!,
                 0.7,
                 true,
@@ -75,7 +75,7 @@ describeLive('DeepSeekV2Agent (live)', () => {
 
     describe('askText', () => {
         it('with thinking returns plain prose (no JSON envelope) plus reasoning content', async () => {
-            const agent = makeAgent(LLM_CONSTANTS.DEEPSEEK_V4_PRO, true);
+            const agent = makeAgent(LLM_CONSTANTS.DEEPSEEK_PRO, true);
             const [reply, thinking, tokenUsage] = await agent.askText([{
                 role: 'user',
                 content: 'In 3-4 sentences, describe what you see as the party enters the ruined great hall.',
@@ -94,7 +94,7 @@ describeLive('DeepSeekV2Agent (live)', () => {
         it('with thinking disabled returns plain prose and no reasoning content', async () => {
             // DeepSeek V4 thinks by default; this proves the top-level `thinking: disabled`
             // flag reaches the API (the old extra_body form was silently ignored).
-            const agent = makeAgent(LLM_CONSTANTS.DEEPSEEK_V4_FLASH, false);
+            const agent = makeAgent(LLM_CONSTANTS.DEEPSEEK_FLASH, false);
             const [reply, thinking, tokenUsage] = await agent.askText([{
                 role: 'user',
                 content: 'In 2-3 sentences, introduce yourself to the rest of the party.',

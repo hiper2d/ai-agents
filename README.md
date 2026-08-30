@@ -27,7 +27,7 @@ import { z } from 'zod';
 const agent = AgentFactory.createAgent(
     'Mira',                                     // agent name (used in logs and cache keys)
     'You are Mira, a retired cartographer.',   // system instruction
-    LLM_CONSTANTS.CLAUDE_4_SONNET,             // catalog id
+    LLM_CONSTANTS.CLAUDE_SONNET,             // catalog id
     { [API_KEY_CONSTANTS.ANTHROPIC]: process.env.ANTHROPIC_API_KEY! },
 );
 

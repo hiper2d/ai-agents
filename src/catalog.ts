@@ -41,6 +41,9 @@ export const SupportedAiKeyNames: Record<string, string> = {
     [API_KEY_CONSTANTS.MINIMAX]: 'MiniMax'
 };
 
+// Naming rule: a constant's NAME is its id in upper snake case (CLAUDE_SONNET === 'claude-sonnet').
+// Ids are version-free on purpose — they are persisted by consumers, so a model bump changes only
+// the entry (displayName / modelApiName), never the id or the constant. Enforced by catalog.test.ts.
 export const LLM_CONSTANTS = {
     // Thinking-only catalog since 2026-08-05: models whose API offers a thinking toggle used to
     // ship as separate with/without picker entries. The non-thinking variants were retired and
@@ -48,24 +51,24 @@ export const LLM_CONSTANTS = {
     // Ids are stable slot names, independent of provider version, so repointing a slot to a
     // newer model doesn't orphan ids persisted by consumers.
     CLAUDE_FABLE: 'claude-fable',
-    CLAUDE_4_OPUS: 'claude-opus',
-    CLAUDE_4_SONNET: 'claude-sonnet',
-    CLAUDE_4_HAIKU: 'claude-haiku',
-    DEEPSEEK_V4_FLASH: 'deepseek-flash',
-    DEEPSEEK_V4_PRO: 'deepseek-pro',
+    CLAUDE_OPUS: 'claude-opus',
+    CLAUDE_SONNET: 'claude-sonnet',
+    CLAUDE_HAIKU: 'claude-haiku',
+    DEEPSEEK_FLASH: 'deepseek-flash',
+    DEEPSEEK_PRO: 'deepseek-pro',
     // GPT-5.6 family. 'gpt' and 'gpt-mini' are stable picker ids carried over from the
     // GPT-5.5 / GPT-5.4-mini era so existing consumers keep working across the repoint.
-    GPT_5_6_SOL: 'gpt-sol',
-    GPT_5_6_TERRA: 'gpt',
-    GPT_5_6_LUNA: 'gpt-mini',
-    GEMINI_3_PRO: 'gemini-pro',
-    GEMINI_3_FLASH: 'gemini-flash',
-    GEMINI_3_FLASH_LITE: 'gemini-lite',
-    MISTRAL_3_LARGE: 'mistral-large',
-    MISTRAL_3_5_MEDIUM: 'mistral-medium',
-    MISTRAL_4_SMALL: 'mistral-small',
+    GPT_SOL: 'gpt-sol',
+    GPT: 'gpt',
+    GPT_MINI: 'gpt-mini',
+    GEMINI_PRO: 'gemini-pro',
+    GEMINI_FLASH: 'gemini-flash',
+    GEMINI_LITE: 'gemini-lite',
+    MISTRAL_LARGE: 'mistral-large',
+    MISTRAL_MEDIUM: 'mistral-medium',
+    MISTRAL_SMALL: 'mistral-small',
     MISTRAL_MAGISTRAL: 'mistral-magistral',
-    GROK_4_6: 'grok',
+    GROK: 'grok',
     KIMI: 'kimi',
     GLM: 'glm',
     GLM_FLASH: 'glm-flash',
@@ -145,7 +148,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     },
 
     // Claude models — thinking-only entries (non-thinking variants retired 2026-08-05)
-    [LLM_CONSTANTS.CLAUDE_4_OPUS]: {
+    [LLM_CONSTANTS.CLAUDE_OPUS]: {
         displayName: 'Claude 5 Opus',
         modelApiName: 'claude-opus-5',
         apiKeyName: API_KEY_CONSTANTS.ANTHROPIC,
@@ -153,7 +156,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         reasoningEffort: 'high',
         tags: ['expensive'],
     },
-    [LLM_CONSTANTS.CLAUDE_4_SONNET]: {
+    [LLM_CONSTANTS.CLAUDE_SONNET]: {
         displayName: 'Claude 5 Sonnet',
         modelApiName: 'claude-sonnet-5',
         apiKeyName: API_KEY_CONSTANTS.ANTHROPIC,
@@ -161,7 +164,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         reasoningEffort: 'high',
         tags: ['expensive'],
     },
-    [LLM_CONSTANTS.CLAUDE_4_HAIKU]: {
+    [LLM_CONSTANTS.CLAUDE_HAIKU]: {
         displayName: 'Claude 4.5 Haiku',
         modelApiName: 'claude-haiku-4-5',
         apiKeyName: API_KEY_CONSTANTS.ANTHROPIC,
@@ -175,7 +178,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // knob exists) both models emitted ~8 reasoning tokens per answer token in prod
     // (requestStats 30d: flash p50 8.9s / p90 36s, pro p50 18.9s / p90 56s) and a 15-bot story
     // took 68-105s. Latency tracks reasoning length ~linearly, so effort is the only lever.
-    [LLM_CONSTANTS.DEEPSEEK_V4_FLASH]: {
+    [LLM_CONSTANTS.DEEPSEEK_FLASH]: {
         displayName: 'DeepSeek V4 Flash',
         modelApiName: 'deepseek-v4-flash',
         apiKeyName: API_KEY_CONSTANTS.DEEPSEEK,
@@ -185,7 +188,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         maxOutputTokens: 65536,
         tags: ['cheap'],
     },
-    [LLM_CONSTANTS.DEEPSEEK_V4_PRO]: {
+    [LLM_CONSTANTS.DEEPSEEK_PRO]: {
         displayName: 'DeepSeek V4 Pro',
         modelApiName: 'deepseek-v4-pro',
         apiKeyName: API_KEY_CONSTANTS.DEEPSEEK,
@@ -199,7 +202,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // Models with always-on reasoning
     // GPT-5.6 family (promoted July 2026 when the limited preview opened up):
     // sol is the flagship, terra the mainline, luna the cheap tier.
-    [LLM_CONSTANTS.GPT_5_6_SOL]: {
+    [LLM_CONSTANTS.GPT_SOL]: {
         displayName: 'GPT-5.6 Sol',
         modelApiName: 'gpt-5.6-sol',
         apiKeyName: API_KEY_CONSTANTS.OPENAI,
@@ -207,7 +210,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         temperature: 1,
         tags: ['expensive'],
     },
-    [LLM_CONSTANTS.GPT_5_6_TERRA]: {
+    [LLM_CONSTANTS.GPT]: {
         displayName: 'GPT-5.6 Terra',
         modelApiName: 'gpt-5.6-terra',
         apiKeyName: API_KEY_CONSTANTS.OPENAI,
@@ -215,7 +218,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         temperature: 1,
         tags: ['fast', 'expensive'],
     },
-    [LLM_CONSTANTS.GPT_5_6_LUNA]: {
+    [LLM_CONSTANTS.GPT_MINI]: {
         displayName: 'GPT-5.6 Luna',
         modelApiName: 'gpt-5.6-luna',
         apiKeyName: API_KEY_CONSTANTS.OPENAI,
@@ -230,7 +233,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // 2.5-era thinkingBudget: 1024 (2026-08-06), which HAD been binding — so Flash Lite now
     // thinks noticeably less under its "minimal" default (0.8s/49-token votes vs 4.5s/650
     // budgeted); bump it to 'low' if its output quality visibly drops.
-    [LLM_CONSTANTS.GEMINI_3_PRO]: {
+    [LLM_CONSTANTS.GEMINI_PRO]: {
         displayName: 'Gemini 3.1 Pro Preview',
         modelApiName: 'gemini-3.1-pro-preview',
         apiKeyName: API_KEY_CONSTANTS.GOOGLE,
@@ -238,7 +241,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         reasoningEffort: 'high',
         tags: ['expensive'],
     },
-    [LLM_CONSTANTS.GEMINI_3_FLASH]: {
+    [LLM_CONSTANTS.GEMINI_FLASH]: {
         // Repointed from gemini-3.6-flash 2026-08-13 (stable picker id, same pattern as gpt).
         // 3.7 rejects thinkingLevel 'minimal' (low|medium|high only), unlike 3.5/3.6.
         displayName: 'Gemini 3.7 Flash',
@@ -248,7 +251,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         reasoningEffort: 'medium',
         tags: ['fast'],
     },
-    [LLM_CONSTANTS.GEMINI_3_FLASH_LITE]: {
+    [LLM_CONSTANTS.GEMINI_LITE]: {
         displayName: 'Gemini 3.5 Flash Lite',
         modelApiName: 'gemini-3.5-flash-lite',
         apiKeyName: API_KEY_CONSTANTS.GOOGLE,
@@ -257,7 +260,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         tags: ['fast', 'cheap'],
     },
     // Always-on reasoning (xAI default effort "high", cannot be disabled) — no non-thinking sibling
-    [LLM_CONSTANTS.GROK_4_6]: {
+    [LLM_CONSTANTS.GROK]: {
         displayName: 'Grok 4.6',
         modelApiName: 'grok-4.6',
         apiKeyName: API_KEY_CONSTANTS.GROK,
@@ -266,21 +269,21 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     },
 
     // Mistral models
-    [LLM_CONSTANTS.MISTRAL_3_LARGE]: {
+    [LLM_CONSTANTS.MISTRAL_LARGE]: {
         displayName: 'Mistral Large 3',
         modelApiName: 'mistral-large-latest',
         apiKeyName: API_KEY_CONSTANTS.MISTRAL,
         hasThinking: false,
         tags: ['fast'],
     },
-    [LLM_CONSTANTS.MISTRAL_3_5_MEDIUM]: {
+    [LLM_CONSTANTS.MISTRAL_MEDIUM]: {
         displayName: 'Mistral Medium 3.5',
         modelApiName: 'mistral-medium-3',
         apiKeyName: API_KEY_CONSTANTS.MISTRAL,
         hasThinking: false,
         tags: ['very-fast', 'expensive'],
     },
-    [LLM_CONSTANTS.MISTRAL_4_SMALL]: {
+    [LLM_CONSTANTS.MISTRAL_SMALL]: {
         displayName: 'Mistral 4 Small',
         modelApiName: 'mistral-small-latest',
         apiKeyName: API_KEY_CONSTANTS.MISTRAL,
@@ -549,7 +552,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     // Sol repriced 2026-08-30 (developers.openai.com/api/docs/pricing): $4/$20 short context,
     // $8/$30 past the long-context threshold — the same 272k boundary its siblings use.
     // Cache writes ($5/$10) are not modelled; OpenAI caching is automatic and we only see hits.
-    [SupportedAiModels[LLM_CONSTANTS.GPT_5_6_SOL].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.GPT_SOL].modelApiName]: {
         inputPrice: 4.000,
         outputPrice: 20.000,
         cacheHitPrice: 0.400,
@@ -558,7 +561,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         extendedContextCacheHitPrice: 0.800,
         extendedContextThresholdTokens: 272_000
     },
-    [SupportedAiModels[LLM_CONSTANTS.GPT_5_6_TERRA].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.GPT].modelApiName]: {
         inputPrice: 2.000,
         outputPrice: 12.000,
         cacheHitPrice: 0.200,
@@ -567,7 +570,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         extendedContextCacheHitPrice: 0.400,
         extendedContextThresholdTokens: 272_000
     },
-    [SupportedAiModels[LLM_CONSTANTS.GPT_5_6_LUNA].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.GPT_MINI].modelApiName]: {
         inputPrice: 0.200,
         outputPrice: 1.200,
         cacheHitPrice: 0.020,
@@ -583,13 +586,13 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     // (api-docs.deepseek.com/quick_start/pricing, fetched 2026-08-13; rates re-confirmed
     // 2026-08-30). Since 2026-08-23 00:00 Beijing (UTC+8) the surcharge is weekdays-only:
     // Saturday and Sunday Beijing time bill at the off-peak rate all day (DeepSeek notice email).
-    [SupportedAiModels[LLM_CONSTANTS.DEEPSEEK_V4_FLASH].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.DEEPSEEK_FLASH].modelApiName]: {
         inputPrice: 0.22,
         outputPrice: 0.66,
         cacheHitPrice: 0.007,
         peakPricing: DEEPSEEK_PEAK_SCHEDULE
     },
-    [SupportedAiModels[LLM_CONSTANTS.DEEPSEEK_V4_PRO].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.DEEPSEEK_PRO].modelApiName]: {
         inputPrice: 0.66,
         outputPrice: 1.98,
         cacheHitPrice: 0.022,
@@ -625,24 +628,24 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         outputPrice: 50.0,
         cacheHitPrice: 1.0
     },
-    [SupportedAiModels[LLM_CONSTANTS.CLAUDE_4_OPUS].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.CLAUDE_OPUS].modelApiName]: {
         inputPrice: 5.0,
         outputPrice: 25.0,
         cacheHitPrice: 0.50
     },
-    [SupportedAiModels[LLM_CONSTANTS.CLAUDE_4_SONNET].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.CLAUDE_SONNET].modelApiName]: {
         inputPrice: 2.0,
         outputPrice: 10.0,
         cacheHitPrice: 0.20
     },
-    [SupportedAiModels[LLM_CONSTANTS.CLAUDE_4_HAIKU].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.CLAUDE_HAIKU].modelApiName]: {
         inputPrice: 1.0,
         outputPrice: 5.0,
         cacheHitPrice: 0.10
     },
 
     // Google models
-    [SupportedAiModels[LLM_CONSTANTS.GEMINI_3_PRO].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.GEMINI_PRO].modelApiName]: {
         inputPrice: 2.0,
         outputPrice: 12.0,
         cacheHitPrice: 0.20,
@@ -651,7 +654,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         extendedContextCacheHitPrice: 0.40,
         extendedContextThresholdTokens: 200_000
     },
-    [SupportedAiModels[LLM_CONSTANTS.GEMINI_3_FLASH].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.GEMINI_FLASH].modelApiName]: {
         // Launch pricing through 2026-12-31; doubles to $1.50/$7.50/$0.15 on 2027-01-01
         // (ai.google.dev pricing page, fetched 2026-08-13) — ACTION NEEDED then: update these
         // rates.
@@ -661,7 +664,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         outputPrice: 3.75,
         cacheHitPrice: 0.075
     },
-    [SupportedAiModels[LLM_CONSTANTS.GEMINI_3_FLASH_LITE].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.GEMINI_LITE].modelApiName]: {
         // Cache storage cost ($1.00 / 1M tokens per hour) is not tracked here — the
         // schema only models per-token call costs, not time-based storage.
         inputPrice: 0.30,
@@ -671,17 +674,17 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
 
     // Mistral models. Cached tokens bill at 10% of the input price (documented on the
     // prompt_cache_key param in the API reference; no per-model cached prices published).
-    [SupportedAiModels[LLM_CONSTANTS.MISTRAL_3_LARGE].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.MISTRAL_LARGE].modelApiName]: {
         inputPrice: 0.5,
         outputPrice: 1.5,
         cacheHitPrice: 0.05
     },
-    [SupportedAiModels[LLM_CONSTANTS.MISTRAL_3_5_MEDIUM].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.MISTRAL_MEDIUM].modelApiName]: {
         inputPrice: 1.5,
         outputPrice: 7.5,
         cacheHitPrice: 0.15
     },
-    [SupportedAiModels[LLM_CONSTANTS.MISTRAL_4_SMALL].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.MISTRAL_SMALL].modelApiName]: {
         inputPrice: 0.15,
         outputPrice: 0.6,
         cacheHitPrice: 0.015
@@ -695,7 +698,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     // Grok models. Cached price is per-model on xAI (not a uniform ratio):
     // grok-4.6 is $0.50/M cached vs $2.00/M input, and all rates double for prompts
     // >= 200K tokens, per docs.x.ai/developers/models (verified 2026-08-12).
-    [SupportedAiModels[LLM_CONSTANTS.GROK_4_6].modelApiName]: {
+    [SupportedAiModels[LLM_CONSTANTS.GROK].modelApiName]: {
         inputPrice: 2.0,
         outputPrice: 6.0,
         cacheHitPrice: 0.50,
@@ -757,11 +760,11 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
  *  applies to. This is hand-maintained: it can no longer be derived from the catalog, since no
  *  non-thinking siblings exist to derive it from. */
 const HYBRID_THINKING_API_NAMES = new Set([
-    SupportedAiModels[LLM_CONSTANTS.CLAUDE_4_OPUS].modelApiName,
-    SupportedAiModels[LLM_CONSTANTS.CLAUDE_4_SONNET].modelApiName,
-    SupportedAiModels[LLM_CONSTANTS.CLAUDE_4_HAIKU].modelApiName,
-    SupportedAiModels[LLM_CONSTANTS.DEEPSEEK_V4_FLASH].modelApiName,
-    SupportedAiModels[LLM_CONSTANTS.DEEPSEEK_V4_PRO].modelApiName,
+    SupportedAiModels[LLM_CONSTANTS.CLAUDE_OPUS].modelApiName,
+    SupportedAiModels[LLM_CONSTANTS.CLAUDE_SONNET].modelApiName,
+    SupportedAiModels[LLM_CONSTANTS.CLAUDE_HAIKU].modelApiName,
+    SupportedAiModels[LLM_CONSTANTS.DEEPSEEK_FLASH].modelApiName,
+    SupportedAiModels[LLM_CONSTANTS.DEEPSEEK_PRO].modelApiName,
     SupportedAiModels[LLM_CONSTANTS.GLM].modelApiName,
     SupportedAiModels[LLM_CONSTANTS.GLM_FLASH].modelApiName,
     // Qwen ships thinking-only from day one, but the API's enable_thinking toggle makes these

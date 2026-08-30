@@ -16,7 +16,7 @@ import { assistantPrompt, sampleHistory, ReplySchema, SceneSchema, SILENT_LOGGIN
 
 const apiKey = process.env[API_KEY_CONSTANTS.GROK];
 const describeLive = apiKey ? describe : describe.skip;
-const GROK = SupportedAiModels[LLM_CONSTANTS.GROK_4_6].modelApiName;
+const GROK = SupportedAiModels[LLM_CONSTANTS.GROK].modelApiName;
 
 const createAgent = (name: string, enableThinking: boolean = true): GrokAgent =>
     new GrokAgent(name, assistantPrompt({ name }), GROK, apiKey || 'test_key', 0.7, enableThinking, SILENT_LOGGING);

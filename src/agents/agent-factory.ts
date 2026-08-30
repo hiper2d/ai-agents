@@ -33,32 +33,32 @@ export class AgentFactory {
         switch (modelName) {
             // Claude models — thinking-only since 2026-08-05
             case LLM_CONSTANTS.CLAUDE_FABLE:
-            case LLM_CONSTANTS.CLAUDE_4_OPUS:
-            case LLM_CONSTANTS.CLAUDE_4_SONNET:
-            case LLM_CONSTANTS.CLAUDE_4_HAIKU:
+            case LLM_CONSTANTS.CLAUDE_OPUS:
+            case LLM_CONSTANTS.CLAUDE_SONNET:
+            case LLM_CONSTANTS.CLAUDE_HAIKU:
                 return new ClaudeAgent(name, instruction, model.modelApiName, key, shouldEnableThinking);
 
             // Always-on reasoning models
-            case LLM_CONSTANTS.GPT_5_6_SOL:
-            case LLM_CONSTANTS.GPT_5_6_TERRA:
-            case LLM_CONSTANTS.GPT_5_6_LUNA:
+            case LLM_CONSTANTS.GPT_SOL:
+            case LLM_CONSTANTS.GPT:
+            case LLM_CONSTANTS.GPT_MINI:
                 return new Gpt5Agent(name, instruction, model.modelApiName, key, model.temperature!, shouldEnableThinking);
-            case LLM_CONSTANTS.GEMINI_3_PRO:
-            case LLM_CONSTANTS.GEMINI_3_FLASH:
-            case LLM_CONSTANTS.GEMINI_3_FLASH_LITE:
+            case LLM_CONSTANTS.GEMINI_PRO:
+            case LLM_CONSTANTS.GEMINI_FLASH:
+            case LLM_CONSTANTS.GEMINI_LITE:
                 return new GoogleAgent(name, instruction, model.modelApiName, key, shouldEnableThinking);
-            case LLM_CONSTANTS.GROK_4_6:
+            case LLM_CONSTANTS.GROK:
                 return new GrokAgent(name, instruction, model.modelApiName, key, model.temperature!, shouldEnableThinking);
 
             // DeepSeek V4 models — thinking-only since 2026-08-05
-            case LLM_CONSTANTS.DEEPSEEK_V4_FLASH:
-            case LLM_CONSTANTS.DEEPSEEK_V4_PRO:
+            case LLM_CONSTANTS.DEEPSEEK_FLASH:
+            case LLM_CONSTANTS.DEEPSEEK_PRO:
                 return new DeepSeekV2Agent(name, instruction, model.modelApiName, key, model.temperature ?? 0, shouldEnableThinking);
 
             // Mistral models
-            case LLM_CONSTANTS.MISTRAL_3_5_MEDIUM:
-            case LLM_CONSTANTS.MISTRAL_4_SMALL:
-            case LLM_CONSTANTS.MISTRAL_3_LARGE:
+            case LLM_CONSTANTS.MISTRAL_MEDIUM:
+            case LLM_CONSTANTS.MISTRAL_SMALL:
+            case LLM_CONSTANTS.MISTRAL_LARGE:
             case LLM_CONSTANTS.MISTRAL_MAGISTRAL:
                 return new MistralAgent(name, instruction, model.modelApiName, key, shouldEnableThinking);
             case LLM_CONSTANTS.KIMI:

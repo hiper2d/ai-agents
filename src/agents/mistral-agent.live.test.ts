@@ -54,7 +54,7 @@ describe('MistralAgent live', () => {
         };
 
         it('Mistral Medium returns a typed reply with token usage', async () => {
-            await expectTypedReply(LLM_CONSTANTS.MISTRAL_3_5_MEDIUM);
+            await expectTypedReply(LLM_CONSTANTS.MISTRAL_MEDIUM);
         }, 30000);
 
         it('Magistral returns a typed reply in JSON mode with empty thinking (by design)', async () => {
@@ -75,7 +75,7 @@ describe('MistralAgent live', () => {
         }, 60000);
 
         it('Mistral Medium generates an 8-character scene at a 16k output ceiling without truncating', async () => {
-            const agent = createAgent('Narrator', LLM_CONSTANTS.MISTRAL_3_5_MEDIUM, false);
+            const agent = createAgent('Narrator', LLM_CONSTANTS.MISTRAL_MEDIUM, false);
             agent.maxOutputTokens = 16384;
             const [scene, , tokenUsage] = await agent.askWithZodSchema(SceneSchema, SCENE_REQUEST);
 
@@ -117,7 +117,7 @@ describe('MistralAgent live', () => {
     });
 
     describe('error handling', () => {
-        const medium = SupportedAiModels[LLM_CONSTANTS.MISTRAL_3_5_MEDIUM].modelApiName;
+        const medium = SupportedAiModels[LLM_CONSTANTS.MISTRAL_MEDIUM].modelApiName;
         const ping: AIMessage[] = [{ role: 'user', content: 'Test message' }];
 
         it('wraps API errors in the agent error, not a schema error', async () => {
@@ -127,14 +127,14 @@ describe('MistralAgent live', () => {
         }, 30000);
 
         it('rejects a response with no choices', async () => {
-            const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_3_5_MEDIUM);
+            const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_MEDIUM);
             (agent as any).client.chat.complete = jest.fn().mockResolvedValue({ choices: [] });
             await expect(agent.askWithZodSchema(ReplySchema, ping))
                 .rejects.toThrow('Empty or undefined response from Mistral API');
         });
 
         it('rejects a choice with no content', async () => {
-            const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_3_5_MEDIUM);
+            const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_MEDIUM);
             (agent as any).client.chat.complete = jest.fn().mockResolvedValue({ choices: [{ message: {} }] });
             await expect(agent.askWithZodSchema(ReplySchema, ping))
                 .rejects.toThrow('Failed to get response from Mistral API: Invalid response format from Mistral API');
@@ -143,7 +143,7 @@ describe('MistralAgent live', () => {
 
     describe('token cost', () => {
         it('Mistral Medium: $1.5 in / $7.5 out per 1M', () => {
-            const apiName = SupportedAiModels[LLM_CONSTANTS.MISTRAL_3_5_MEDIUM].modelApiName;
+            const apiName = SupportedAiModels[LLM_CONSTANTS.MISTRAL_MEDIUM].modelApiName;
             expect(calculateModelCost(apiName, 1_000_000, 1_000_000)).toBeCloseTo(9.0, 2);
         });
 

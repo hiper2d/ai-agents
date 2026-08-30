@@ -21,13 +21,13 @@ const describeLive = apiKey ? describe : describe.skip;
 
 const apiName = (id: string) => SupportedAiModels[id].modelApiName;
 
-function makeAgent(modelId: string = LLM_CONSTANTS.GEMINI_3_PRO, enableThinking = false, key: string = apiKey!): GoogleAgent {
+function makeAgent(modelId: string = LLM_CONSTANTS.GEMINI_PRO, enableThinking = false, key: string = apiKey!): GoogleAgent {
     return new GoogleAgent('Mira', assistantPrompt(), apiName(modelId), key, enableThinking, SILENT_LOGGING);
 }
 
 describe('GoogleAgent (offline)', () => {
     it('rejects an unsupported message role before calling the API', async () => {
-        const agent = makeAgent(LLM_CONSTANTS.GEMINI_3_PRO, false, TEST_API_KEYS[API_KEY_CONSTANTS.GOOGLE]!);
+        const agent = makeAgent(LLM_CONSTANTS.GEMINI_PRO, false, TEST_API_KEYS[API_KEY_CONSTANTS.GOOGLE]!);
         const messages: AIMessage[] = [{ role: 'invalid_role' as any, content: 'Test message' }];
         await expect(agent.askWithZodSchema(ReplySchema, messages)).rejects.toThrow();
     });
@@ -35,7 +35,7 @@ describe('GoogleAgent (offline)', () => {
 
 describeLive('GoogleAgent (live)', () => {
     it('Pro answers a schema-validated ask with usage that accounts for reasoning', async () => {
-        const agent = makeAgent(LLM_CONSTANTS.GEMINI_3_PRO);
+        const agent = makeAgent(LLM_CONSTANTS.GEMINI_PRO);
         const [response, , tokenUsage] = await agent.askWithZodSchema(ReplySchema, sampleHistory());
 
         expect(typeof response.reply).toBe('string');
@@ -51,7 +51,7 @@ describeLive('GoogleAgent (live)', () => {
     }, 60000);
 
     it('Flash answers a schema-validated ask', async () => {
-        const agent = makeAgent(LLM_CONSTANTS.GEMINI_3_FLASH);
+        const agent = makeAgent(LLM_CONSTANTS.GEMINI_FLASH);
         const [response] = await agent.askWithZodSchema(ReplySchema, sampleHistory());
 
         expect(typeof response.reply).toBe('string');
@@ -59,7 +59,7 @@ describeLive('GoogleAgent (live)', () => {
     }, 60000);
 
     it('Flash Lite answers a schema-validated ask and its pricing entry resolves', async () => {
-        const agent = makeAgent(LLM_CONSTANTS.GEMINI_3_FLASH_LITE);
+        const agent = makeAgent(LLM_CONSTANTS.GEMINI_LITE);
         const [response, , tokenUsage] = await agent.askWithZodSchema(ReplySchema, sampleHistory());
 
         expect(typeof response.reply).toBe('string');
@@ -71,7 +71,7 @@ describeLive('GoogleAgent (live)', () => {
     }, 60000);
 
     it('bills a short request at a sane cost', async () => {
-        const agent = makeAgent(LLM_CONSTANTS.GEMINI_3_PRO);
+        const agent = makeAgent(LLM_CONSTANTS.GEMINI_PRO);
         const [, , tokenUsage] = await agent.askWithZodSchema(ReplySchema, [{ role: 'user', content: 'Hello, how are you today?' }]);
 
         expect(tokenUsage).toBeDefined();
@@ -80,7 +80,7 @@ describeLive('GoogleAgent (live)', () => {
     }, 60000);
 
     it('surfaces an API failure', async () => {
-        const agent = makeAgent(LLM_CONSTANTS.GEMINI_3_PRO, false, 'invalid_api_key');
+        const agent = makeAgent(LLM_CONSTANTS.GEMINI_PRO, false, 'invalid_api_key');
         await expect(agent.askWithZodSchema(ReplySchema, sampleHistory())).rejects.toThrow();
     }, 30000);
 
@@ -88,7 +88,7 @@ describeLive('GoogleAgent (live)', () => {
         const agent = new GoogleAgent(
             'Narrator',
             'You are the narrator of a collaborative text adventure. When asked for JSON, reply with a single JSON object and nothing else.',
-            apiName(LLM_CONSTANTS.GEMINI_3_PRO),
+            apiName(LLM_CONSTANTS.GEMINI_PRO),
             apiKey!,
             false,
             SILENT_LOGGING,
@@ -112,7 +112,7 @@ describeLive('GoogleAgent (live)', () => {
 
     describe('thinking', () => {
         it('returns thought content with a signature when the model thinks', async () => {
-            const agent = makeAgent(LLM_CONSTANTS.GEMINI_3_PRO, true);
+            const agent = makeAgent(LLM_CONSTANTS.GEMINI_PRO, true);
             const [response, thinking, , signature] = await agent.askWithZodSchema(ReplySchema, [{
                 role: 'user',
                 content: 'What is 15 * 13? Explain your reasoning, then answer in character.',
@@ -128,7 +128,7 @@ describeLive('GoogleAgent (live)', () => {
         }, 60000);
 
         it('replays a mixed history (unsigned text-only turn) without crashing', async () => {
-            const agent = makeAgent(LLM_CONSTANTS.GEMINI_3_PRO, true);
+            const agent = makeAgent(LLM_CONSTANTS.GEMINI_PRO, true);
             const messages: AIMessage[] = [
                 { role: 'user', content: 'Hi, I am Alice.' },
                 { role: 'assistant', content: 'Hello Alice. I am Mira.' }, // no thinking, no signature
@@ -140,7 +140,7 @@ describeLive('GoogleAgent (live)', () => {
         }, 60000);
 
         it('drops a thinking block that lost its signature instead of sending it', async () => {
-            const agent = makeAgent(LLM_CONSTANTS.GEMINI_3_PRO, true);
+            const agent = makeAgent(LLM_CONSTANTS.GEMINI_PRO, true);
             const messages: AIMessage[] = [
                 { role: 'user', content: 'Analyze this.' },
                 { role: 'assistant', content: 'I have analyzed it.', thinking: 'A thought that lost its signature.' },

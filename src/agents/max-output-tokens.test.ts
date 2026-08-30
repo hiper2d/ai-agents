@@ -16,15 +16,15 @@ const LONG_FORM_MAX_OUTPUT_TOKENS = 16384;
 
 describe('max output tokens', () => {
     it('resolves the shared default for models with no catalog override', () => {
-        const agent = AgentFactory.createAgent('character', 'instruction', LLM_CONSTANTS.CLAUDE_4_HAIKU, TEST_API_KEYS);
-        expect(SupportedAiModels[LLM_CONSTANTS.CLAUDE_4_HAIKU].maxOutputTokens).toBeUndefined();
+        const agent = AgentFactory.createAgent('character', 'instruction', LLM_CONSTANTS.CLAUDE_HAIKU, TEST_API_KEYS);
+        expect(SupportedAiModels[LLM_CONSTANTS.CLAUDE_HAIKU].maxOutputTokens).toBeUndefined();
         expect(agent.maxOutputTokens).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
     });
 
     it('prefers a catalog override where one is set', () => {
-        const flash = SupportedAiModels[LLM_CONSTANTS.DEEPSEEK_V4_FLASH];
+        const flash = SupportedAiModels[LLM_CONSTANTS.DEEPSEEK_FLASH];
         expect(flash.maxOutputTokens).toBeDefined();
-        const agent = AgentFactory.createAgent('character', 'instruction', LLM_CONSTANTS.DEEPSEEK_V4_FLASH, TEST_API_KEYS);
+        const agent = AgentFactory.createAgent('character', 'instruction', LLM_CONSTANTS.DEEPSEEK_FLASH, TEST_API_KEYS);
         expect(agent.maxOutputTokens).toBe(flash.maxOutputTokens);
     });
 
@@ -42,8 +42,8 @@ describe('max output tokens', () => {
     });
 
     it('is mutable per agent, so one caller can raise it without affecting others', () => {
-        const longForm = AgentFactory.createAgent('narrator', 'instruction', LLM_CONSTANTS.CLAUDE_4_HAIKU, TEST_API_KEYS);
-        const turn = AgentFactory.createAgent('character', 'instruction', LLM_CONSTANTS.CLAUDE_4_HAIKU, TEST_API_KEYS);
+        const longForm = AgentFactory.createAgent('narrator', 'instruction', LLM_CONSTANTS.CLAUDE_HAIKU, TEST_API_KEYS);
+        const turn = AgentFactory.createAgent('character', 'instruction', LLM_CONSTANTS.CLAUDE_HAIKU, TEST_API_KEYS);
         longForm.maxOutputTokens = LONG_FORM_MAX_OUTPUT_TOKENS;
         expect(longForm.maxOutputTokens).toBe(LONG_FORM_MAX_OUTPUT_TOKENS);
         expect(turn.maxOutputTokens).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
@@ -83,7 +83,7 @@ describe('reasoning knobs (reasoningEffort / thinkingBudgetTokens)', () => {
     });
 
     it('carries an effort pin where the catalog sets one, and none where it does not', () => {
-        const deepseek = AgentFactory.createAgent('character', 'instruction', LLM_CONSTANTS.DEEPSEEK_V4_FLASH, TEST_API_KEYS);
+        const deepseek = AgentFactory.createAgent('character', 'instruction', LLM_CONSTANTS.DEEPSEEK_FLASH, TEST_API_KEYS);
         expect(deepseek.reasoningEffort).toBe('low');
         const qwen = AgentFactory.createAgent('character', 'instruction', LLM_CONSTANTS.QWEN_FLASH, TEST_API_KEYS);
         expect(qwen.reasoningEffort).toBeUndefined();
@@ -91,8 +91,8 @@ describe('reasoning knobs (reasoningEffort / thinkingBudgetTokens)', () => {
     });
 
     it('is mutable per agent, so one caller can deepen reasoning without affecting others', () => {
-        const deep = AgentFactory.createAgent('narrator', 'instruction', LLM_CONSTANTS.DEEPSEEK_V4_FLASH, TEST_API_KEYS);
-        const turn = AgentFactory.createAgent('character', 'instruction', LLM_CONSTANTS.DEEPSEEK_V4_FLASH, TEST_API_KEYS);
+        const deep = AgentFactory.createAgent('narrator', 'instruction', LLM_CONSTANTS.DEEPSEEK_FLASH, TEST_API_KEYS);
+        const turn = AgentFactory.createAgent('character', 'instruction', LLM_CONSTANTS.DEEPSEEK_FLASH, TEST_API_KEYS);
         deep.reasoningEffort = 'high';
         deep.thinkingBudgetTokens = 8192;
         expect(deep.reasoningEffort).toBe('high');

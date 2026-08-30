@@ -20,7 +20,7 @@ const describeLive = apiKey ? describe : describe.skip;
 
 const apiName = (id: string) => SupportedAiModels[id].modelApiName;
 
-function makeAgent(modelId: string = LLM_CONSTANTS.CLAUDE_4_SONNET, enableThinking = false, key: string = apiKey!): ClaudeAgent {
+function makeAgent(modelId: string = LLM_CONSTANTS.CLAUDE_SONNET, enableThinking = false, key: string = apiKey!): ClaudeAgent {
     return new ClaudeAgent('Mira', assistantPrompt(), apiName(modelId), key, enableThinking, SILENT_LOGGING);
 }
 
@@ -28,7 +28,7 @@ describe('ClaudeAgent (offline)', () => {
     it('rejects an unsupported message role before calling the API', async () => {
         // Role conversion fails first; the agent wraps every failure in its generic message,
         // the original cause lives in the error details.
-        const agent = makeAgent(LLM_CONSTANTS.CLAUDE_4_SONNET, false, TEST_API_KEYS[API_KEY_CONSTANTS.ANTHROPIC]!);
+        const agent = makeAgent(LLM_CONSTANTS.CLAUDE_SONNET, false, TEST_API_KEYS[API_KEY_CONSTANTS.ANTHROPIC]!);
         const messages: AIMessage[] = [{ role: 'invalid_role' as any, content: 'Test message' }];
         await expect(agent.askWithZodSchema(ReplySchema, messages))
             .rejects
@@ -38,7 +38,7 @@ describe('ClaudeAgent (offline)', () => {
 
 describeLive('ClaudeAgent (live)', () => {
     it('Sonnet answers a schema-validated ask with token usage', async () => {
-        const agent = makeAgent(LLM_CONSTANTS.CLAUDE_4_SONNET);
+        const agent = makeAgent(LLM_CONSTANTS.CLAUDE_SONNET);
         const [response, , tokenUsage] = await agent.askWithZodSchema(ReplySchema, sampleHistory());
 
         expect(typeof response.reply).toBe('string');
@@ -49,7 +49,7 @@ describeLive('ClaudeAgent (live)', () => {
     }, 60000);
 
     it('Opus answers a schema-validated ask', async () => {
-        const agent = makeAgent(LLM_CONSTANTS.CLAUDE_4_OPUS);
+        const agent = makeAgent(LLM_CONSTANTS.CLAUDE_OPUS);
         const [response] = await agent.askWithZodSchema(ReplySchema, sampleHistory());
 
         expect(typeof response.reply).toBe('string');
@@ -57,7 +57,7 @@ describeLive('ClaudeAgent (live)', () => {
     }, 60000);
 
     it('surfaces an API failure as an Anthropic error', async () => {
-        const agent = makeAgent(LLM_CONSTANTS.CLAUDE_4_SONNET, false, 'invalid_api_key');
+        const agent = makeAgent(LLM_CONSTANTS.CLAUDE_SONNET, false, 'invalid_api_key');
         await expect(agent.askWithZodSchema(ReplySchema, [{ role: 'user', content: 'Test message' }]))
             .rejects
             .toThrow('Failed to get response from Anthropic API');
@@ -67,7 +67,7 @@ describeLive('ClaudeAgent (live)', () => {
         const agent = new ClaudeAgent(
             'Narrator',
             'You are the narrator of a collaborative text adventure. When asked for JSON, reply with a single JSON object and nothing else.',
-            apiName(LLM_CONSTANTS.CLAUDE_4_SONNET),
+            apiName(LLM_CONSTANTS.CLAUDE_SONNET),
             apiKey!,
             false,
             SILENT_LOGGING,
@@ -100,7 +100,7 @@ describeLive('ClaudeAgent (live)', () => {
         // at all, so reasoning is asserted only when present — but when it is, it must carry
         // a signature (required to replay it on later turns).
         it('returns reasoning with a signature when the model thinks', async () => {
-            const agent = makeAgent(LLM_CONSTANTS.CLAUDE_4_SONNET, true);
+            const agent = makeAgent(LLM_CONSTANTS.CLAUDE_SONNET, true);
             const [response, thinking, , signature] = await agent.askWithZodSchema(ReplySchema, [{
                 role: 'user',
                 content: 'What is 15 * 13? Explain your reasoning, then answer in character.',
@@ -115,7 +115,7 @@ describeLive('ClaudeAgent (live)', () => {
 
         it('replays a mixed history (unsigned text-only turn) without crashing', async () => {
             // Simulates a conversation that started on a non-thinking model.
-            const agent = makeAgent(LLM_CONSTANTS.CLAUDE_4_SONNET, true);
+            const agent = makeAgent(LLM_CONSTANTS.CLAUDE_SONNET, true);
             const messages: AIMessage[] = [
                 { role: 'user', content: 'Hi, I am Alice.' },
                 { role: 'assistant', content: 'Hello Alice.' }, // no thinking, no signature
@@ -132,7 +132,7 @@ describeLive('ClaudeAgent (live)', () => {
         it('drops a thinking block that lost its signature instead of sending it', async () => {
             // A stored turn with reasoning text but no signature would be rejected by the API;
             // the agent must downgrade it to text-only.
-            const agent = makeAgent(LLM_CONSTANTS.CLAUDE_4_SONNET, true);
+            const agent = makeAgent(LLM_CONSTANTS.CLAUDE_SONNET, true);
             const messages: AIMessage[] = [
                 { role: 'user', content: 'Analyze this.' },
                 { role: 'assistant', content: 'I have analyzed it.', thinking: 'A thought that lost its signature.' },

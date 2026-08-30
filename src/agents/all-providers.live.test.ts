@@ -128,29 +128,29 @@ describe('All providers — constrained choice via askWithZodSchema', () => {
 // models decide per request and skip thinking on trivial prompts; Grok returns encrypted
 // reasoning; Gemini thought summaries and Magistral traces vary. Those are logged.
 const THINKING_GUARANTEED = new Set<string>([
-    LLM_CONSTANTS.CLAUDE_4_HAIKU,          // budget thinking is always emitted
-    LLM_CONSTANTS.DEEPSEEK_V4_FLASH,
-    LLM_CONSTANTS.DEEPSEEK_V4_PRO,
+    LLM_CONSTANTS.CLAUDE_HAIKU,          // budget thinking is always emitted
+    LLM_CONSTANTS.DEEPSEEK_FLASH,
+    LLM_CONSTANTS.DEEPSEEK_PRO,
 ]);
 
 // GPT-5's plain-text path cannot surface thinking (OpenAI never exposes chain-of-thought),
 // so it must return an empty string.
 const THINKING_ALWAYS_EMPTY = new Set<string>([
-    LLM_CONSTANTS.GPT_5_6_SOL,
-    LLM_CONSTANTS.GPT_5_6_TERRA,
-    LLM_CONSTANTS.GPT_5_6_LUNA,
+    LLM_CONSTANTS.GPT_SOL,
+    LLM_CONSTANTS.GPT,
+    LLM_CONSTANTS.GPT_MINI,
 ]);
 
 const TEXT_SWEEP_MODELS = new Set<string>([
-    LLM_CONSTANTS.CLAUDE_4_HAIKU,          // budget thinking
-    LLM_CONSTANTS.CLAUDE_4_OPUS,           // adaptive thinking (may skip thinking)
-    LLM_CONSTANTS.DEEPSEEK_V4_FLASH,
-    LLM_CONSTANTS.GPT_5_6_LUNA,            // single path: thinking never surfaces
-    LLM_CONSTANTS.GEMINI_3_FLASH,
-    LLM_CONSTANTS.GEMINI_3_FLASH_LITE,
-    LLM_CONSTANTS.MISTRAL_4_SMALL,
+    LLM_CONSTANTS.CLAUDE_HAIKU,          // budget thinking
+    LLM_CONSTANTS.CLAUDE_OPUS,           // adaptive thinking (may skip thinking)
+    LLM_CONSTANTS.DEEPSEEK_FLASH,
+    LLM_CONSTANTS.GPT_MINI,            // single path: thinking never surfaces
+    LLM_CONSTANTS.GEMINI_FLASH,
+    LLM_CONSTANTS.GEMINI_LITE,
+    LLM_CONSTANTS.MISTRAL_SMALL,
     LLM_CONSTANTS.MISTRAL_MAGISTRAL,       // structured content array (thinking)
-    LLM_CONSTANTS.GROK_4_6,
+    LLM_CONSTANTS.GROK,
     LLM_CONSTANTS.KIMI,
     LLM_CONSTANTS.GLM,
     LLM_CONSTANTS.FUGU_ULTRA,

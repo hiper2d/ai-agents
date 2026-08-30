@@ -18,7 +18,7 @@ const describeLive = apiKey ? describe : describe.skip;
 
 const createAgent = (
     name: string,
-    modelType: string = LLM_CONSTANTS.GPT_5_6_LUNA,
+    modelType: string = LLM_CONSTANTS.GPT_MINI,
     enableThinking: boolean = true,
 ): Gpt5Agent =>
     new Gpt5Agent(
@@ -34,7 +34,7 @@ const createAgent = (
 describe('Gpt5Agent live', () => {
     describeLive('askWithZodSchema against the real API', () => {
         it('returns a schema-typed reply with token usage (reasoning on)', async () => {
-            const agent = createAgent('Mira', LLM_CONSTANTS.GPT_5_6_LUNA, true);
+            const agent = createAgent('Mira', LLM_CONSTANTS.GPT_MINI, true);
             const [response, thinking, tokenUsage] = await agent.askWithZodSchema(ReplySchema, sampleHistory());
 
             expect(typeof response).toBe('object');
@@ -50,7 +50,7 @@ describe('Gpt5Agent live', () => {
         }, 60000);
 
         it('generates an 8-character scene at a 16k output ceiling without truncating', async () => {
-            const agent = createAgent('Narrator', LLM_CONSTANTS.GPT_5_6_LUNA, false);
+            const agent = createAgent('Narrator', LLM_CONSTANTS.GPT_MINI, false);
             agent.maxOutputTokens = 16384;
             const messages: AIMessage[] = [{
                 role: 'user',
@@ -74,7 +74,7 @@ describe('Gpt5Agent live', () => {
     describe('error handling', () => {
         it('wraps API errors in the agent error, not a schema error', async () => {
             const agent = new Gpt5Agent(
-                'Mira', 'Test instruction', SupportedAiModels[LLM_CONSTANTS.GPT_5_6_LUNA].modelApiName,
+                'Mira', 'Test instruction', SupportedAiModels[LLM_CONSTANTS.GPT_MINI].modelApiName,
                 'invalid_api_key', 0.7, false, SILENT_LOGGING,
             );
             await expect(agent.askWithZodSchema(ReplySchema, [{ role: 'user', content: 'Test message' }]))
@@ -84,7 +84,7 @@ describe('Gpt5Agent live', () => {
 
     describe('token cost', () => {
         it('bills Luna at extended-context rates past its threshold', () => {
-            const apiName = SupportedAiModels[LLM_CONSTANTS.GPT_5_6_LUNA].modelApiName;
+            const apiName = SupportedAiModels[LLM_CONSTANTS.GPT_MINI].modelApiName;
             const pricing = MODEL_PRICING[apiName];
             expect(pricing).toBeDefined();
             expect(pricing.extendedContextThresholdTokens).toBeLessThan(1_000_000);
