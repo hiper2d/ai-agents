@@ -9,6 +9,9 @@ Extracted from the [AI Werewolf](https://aiwerewolf.net) game so its model layer
 shared across apps. Text agents today; TTS, STT and image-generation agents are planned as
 subpath exports.
 
+Migrating a project that has its own agent implementations? Hand [`MIGRATION.md`](./MIGRATION.md)
+to your AI coding assistant — it is written for that job.
+
 ## Install
 
 ```bash
