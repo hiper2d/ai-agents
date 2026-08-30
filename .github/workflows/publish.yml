@@ -1,7 +1,10 @@
 name: Publish
 
-# Tag-triggered: `git tag v0.1.0 && git push origin v0.1.0`. The tag must equal the
+# Tag-triggered: `git tag v0.1.1 && git push origin v0.1.1`. The tag must equal the
 # version in package.json; the job refuses otherwise so a mistagged release can't ship.
+# Publishing uses npm Trusted Publishing (OIDC from this repo's workflow) — no token
+# secret. Configure it once on npmjs.com → package → Settings → Trusted Publishing:
+# GitHub Actions, repository hiper2d/ai-agents, workflow publish.yml.
 on:
   push:
     tags: ['v*']
@@ -11,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write   # npm provenance
+      id-token: write   # OIDC for trusted publishing + provenance
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,6 +33,12 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish (skipped if this version is already on npm)
+        run: |
+          NAME="$(node -p "require('./package.json').name")"
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
+            echo "${NAME}@${VERSION} is already published — nothing to do."
+            exit 0
+          fi
+          npm publish --provenance --access public

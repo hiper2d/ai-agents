@@ -77,7 +77,8 @@ git tag v0.1.1 && git push origin v0.1.1
 ```
 
 The `Publish` workflow verifies the tag matches the package version, runs typecheck/tests/build,
-and publishes to npm with provenance (needs the `NPM_TOKEN` repository secret).
+and publishes to npm with provenance via Trusted Publishing (OIDC — no token secret; configured
+once on the npm package's settings page). A tag whose version is already on npm is a no-op.
 
 ## License
 
