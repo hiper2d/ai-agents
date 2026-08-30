@@ -1,5 +1,5 @@
 {
-  "name": "@hiper2d/llm-agents",
+  "name": "@hiper2d/ai-agents",
   "version": "0.1.0",
   "description": "Multi-provider LLM agent layer: schema-validated asks, thinking extraction, model catalog with per-model tuning defaults, and token cost accounting for 11 providers.",
   "private": true,

@@ -1,5 +1,5 @@
 /**
- * @hiper2d/llm-agents — multi-provider LLM agent layer.
+ * @hiper2d/ai-agents — multi-provider LLM agent layer.
  *
  * Schema-validated asks (Zod), thinking extraction and CoT-leak defense, a model catalog
  * with per-model tuning defaults and `createCatalog(overrides)`, token usage extraction,
