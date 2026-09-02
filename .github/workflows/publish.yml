@@ -17,13 +17,16 @@ jobs:
       id-token: write   # OIDC for trusted publishing + provenance
     steps:
       - uses: actions/checkout@v4
+      # Node 24 bundles an npm with working Trusted Publishing (>= 11.5.1). Deliberately
+      # NO registry-url: setup-node would write an .npmrc with an empty
+      # _authToken=${NODE_AUTH_TOKEN} + legacy always-auth, and that auth contamination
+      # makes npm skip the OIDC token exchange and PUT unauthenticated — the registry
+      # masks it as E404 "not found or you do not have permission" (v0.1.3 attempts #5-6).
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
-          registry-url: https://registry.npmjs.org
-      # Trusted Publishing (OIDC) needs npm >= 11.5.1; Node 22 bundles npm 10.
-      - run: npm install -g npm@latest && npm --version
+      - run: npm --version
       - name: Check tag matches package.json version
         run: |
           PKG="v$(node -p "require('./package.json').version")"
