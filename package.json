@@ -1,6 +1,6 @@
 {
   "name": "@hiper2d/ai-agents",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Multi-provider AI agent layer: schema-validated asks, thinking extraction, a model catalog with per-model tuning defaults, and token cost accounting for 11 LLM providers.",
   "license": "MIT",
   "author": "hiper2d",

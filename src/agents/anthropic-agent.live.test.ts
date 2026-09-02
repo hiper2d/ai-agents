@@ -56,6 +56,20 @@ describeLive('ClaudeAgent (live)', () => {
         expect(response.reply.length).toBeGreaterThan(0);
     }, 60000);
 
+    it('Fable 5.1 answers a schema-validated ask (always-on adaptive thinking, effort control)', async () => {
+        // Simple prompt on purpose: Fable's safety layer refuses some of the game fixtures
+        // (see all-providers.live), so this pins the model id + request shape, not the fixtures.
+        const agent = makeAgent(LLM_CONSTANTS.CLAUDE_FABLE, true);
+        const [response, , tokenUsage] = await agent.askWithZodSchema(ReplySchema, [{
+            role: 'user',
+            content: 'What is 15 * 13? Answer briefly, in character.',
+        }]);
+
+        expect(typeof response.reply).toBe('string');
+        expect(response.reply.length).toBeGreaterThan(0);
+        expect(tokenUsage!.outputTokens).toBeGreaterThan(0);
+    }, 120000);
+
     it('surfaces an API failure as an Anthropic error', async () => {
         const agent = makeAgent(LLM_CONSTANTS.CLAUDE_SONNET, false, 'invalid_api_key');
         await expect(agent.askWithZodSchema(ReplySchema, [{ role: 'user', content: 'Test message' }]))

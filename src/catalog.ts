@@ -137,10 +137,10 @@ export interface ModelConfig {
 }
 
 export const SupportedAiModels: Record<string, ModelConfig> = {
-    // Claude Fable - frontier reasoning model. Thinking is always on (no non-thinking variant).
+    // Claude Fable 5.1 (2026-09-02, was Fable 5) - frontier reasoning model. Thinking is always on (no non-thinking variant).
     [LLM_CONSTANTS.CLAUDE_FABLE]: {
-        displayName: 'Claude Fable 5',
-        modelApiName: 'claude-fable-5',
+        displayName: 'Claude Fable 5.1',
+        modelApiName: 'claude-fable-5-1',
         apiKeyName: API_KEY_CONSTANTS.ANTHROPIC,
         hasThinking: true,
         reasoningEffort: 'high',
@@ -623,10 +623,11 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
 
     // Anthropic models
     [SupportedAiModels[LLM_CONSTANTS.CLAUDE_FABLE].modelApiName]: {
-        // Full 1M context window at standard pricing (no extended-context premium)
+        // Full 1M context window at standard pricing (no extended-context premium).
+        // Fable 5.1 (2026-09-02): same $10/$50 as Fable 5, but cache reads dropped to $0.25/MTok.
         inputPrice: 10.0,
         outputPrice: 50.0,
-        cacheHitPrice: 1.0
+        cacheHitPrice: 0.25
     },
     [SupportedAiModels[LLM_CONSTANTS.CLAUDE_OPUS].modelApiName]: {
         inputPrice: 5.0,
