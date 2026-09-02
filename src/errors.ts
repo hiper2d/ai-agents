@@ -74,6 +74,29 @@ export class ModelQuotaExceededError extends ModelError {
 }
 
 /**
+ * The model failed to produce a valid response: the output was malformed (unparseable
+ * JSON from a structured-output ask) or cut off at the output-token cap before the
+ * answer was complete (`status: "incomplete"` on the OpenAI Responses API). Not a
+ * transport or availability problem — the request worked, the generation went wrong.
+ * A retry with the same prompt often succeeds; `truncated` distinguishes a cap hit
+ * (raise maxOutputTokens if legitimate responses genuinely need more room) from a
+ * degenerate/runaway generation (a bigger cap only makes failures slower).
+ */
+export class ModelInvalidResponseError extends ModelError {
+    public truncated: boolean;
+
+    constructor(
+        modelType: string,
+        detail: string,
+        truncated: boolean = false
+    ) {
+        super(`${modelType} failed to produce a valid response: ${detail}`, modelType);
+        this.name = 'ModelInvalidResponseError';
+        this.truncated = truncated;
+    }
+}
+
+/**
  * The model declined to answer: Anthropic returns `stop_reason: "refusal"` with no content
  * blocks when its safety layer rejects the request as a whole. Not retryable as-is — the
  * same prompt will refuse again — the caller has to change the prompt or the model.

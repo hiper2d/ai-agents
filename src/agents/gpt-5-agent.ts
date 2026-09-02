@@ -1,5 +1,6 @@
 import { AbstractAgent } from "./abstract-agent";
 import OpenAI from "openai";
+import { ModelError, ModelInvalidResponseError } from "../errors";
 import { AIMessage, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
 import { calculateOpenAICost } from "../pricing";
 import { z } from 'zod';
@@ -63,19 +64,44 @@ export class Gpt5Agent extends AbstractAgent {
                 });
             }
 
-            const response = await this.client.responses.parse({
-                model: this.model,
-                instructions: this.instruction,
-                input: input,
-                max_output_tokens: this.maxOutputTokens,
-                text: {
-                    format: zodTextFormat(schemaToSend, "response_schema"),
+            let response;
+            try {
+                response = await this.client.responses.parse({
+                    model: this.model,
+                    instructions: this.instruction,
+                    input: input,
+                    max_output_tokens: this.maxOutputTokens,
+                    text: {
+                        format: zodTextFormat(schemaToSend, "response_schema"),
+                    }
+                });
+            } catch (error) {
+                // The SDK JSON.parses output_text inside responses.parse, so malformed JSON
+                // (a generation truncated at max_output_tokens, or a runaway that never
+                // closed the object) surfaces here as a bare SyntaxError.
+                if (error instanceof SyntaxError) {
+                    throw new ModelInvalidResponseError(
+                        this.model,
+                        `malformed JSON output — the generation was cut off at the ${this.maxOutputTokens}-token output cap or went off the rails (${error.message})`
+                    );
                 }
-            });
+                throw error;
+            }
+
+            // A response can parse and still be incomplete (e.g. the whole budget went to
+            // reasoning). Surface the cap hit explicitly rather than as a format error.
+            if ((response as any).status === 'incomplete') {
+                const reason = (response as any).incomplete_details?.reason ?? 'unknown';
+                throw new ModelInvalidResponseError(
+                    this.model,
+                    `response incomplete (${reason}) at max_output_tokens=${this.maxOutputTokens}`,
+                    reason === 'max_output_tokens'
+                );
+            }
 
             if (!response.output_parsed) {
                 this.logger(`Parsing failed. Raw content: ${response.output_text}`);
-                throw new Error(this.errorMessages.invalidFormat);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.invalidFormat);
             }
 
             // Extract reasoning content from output if available
@@ -126,6 +152,9 @@ export class Gpt5Agent extends AbstractAgent {
             return [response.output_parsed, reasoningContent, tokenUsage];
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) {
+                throw error;
+            }
             throw new Error(this.errorMessages.apiError(error));
         }
     }
@@ -156,6 +185,16 @@ export class Gpt5Agent extends AbstractAgent {
 
             const content = response.output_text;
             if (!content) {
+                // An incomplete response with no visible text usually means the whole
+                // output budget went to reasoning before any answer tokens were emitted.
+                if ((response as any).status === 'incomplete') {
+                    const reason = (response as any).incomplete_details?.reason ?? 'unknown';
+                    throw new ModelInvalidResponseError(
+                        this.model,
+                        `empty response, incomplete (${reason}) at max_output_tokens=${this.maxOutputTokens}`,
+                        reason === 'max_output_tokens'
+                    );
+                }
                 throw new Error(this.errorMessages.emptyResponse);
             }
 
@@ -196,6 +235,9 @@ export class Gpt5Agent extends AbstractAgent {
             return [content, "", tokenUsage];
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) {
+                throw error;
+            }
             throw new Error(this.errorMessages.apiError(error));
         }
     }
