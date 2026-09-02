@@ -125,7 +125,7 @@ export interface ModelConfig {
     // agent clamps the value to the nearest level its API takes before sending. So a catalog
     // pin or a per-call override can use any level; prefer one the model natively supports
     // (Anthropic adaptive low|medium|high|xhigh|max, OpenAI minimal|low|medium|high|xhigh,
-    // Gemini 3.x minimal|low|medium|high — 3.1 Pro and 3.7 Flash reject 'minimal' —, Fugu
+    // Gemini 3.x minimal|low|medium|high — 3.1 Pro and 3.7/3.8 Flash reject 'minimal' —, Fugu
     // high|xhigh, GLM-5.3 and DeepSeek V4 low|high|max).
     reasoningEffort?: ReasoningEffort; // Effort-based APIs (Anthropic adaptive thinking, Gemini 3.x)
     thinkingBudgetTokens?: number; // Budget-based APIs (Anthropic enabled thinking, Qwen thinking_budget)
@@ -242,10 +242,11 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         tags: ['expensive'],
     },
     [LLM_CONSTANTS.GEMINI_FLASH]: {
-        // Repointed from gemini-3.6-flash 2026-08-13 (stable picker id, same pattern as gpt).
-        // 3.7 rejects thinkingLevel 'minimal' (low|medium|high only), unlike 3.5/3.6.
-        displayName: 'Gemini 3.7 Flash',
-        modelApiName: 'gemini-3.7-flash',
+        // Repointed 3.6 → 3.7 (2026-08-13) → 3.8 (2026-09-02); stable picker id, same pattern as gpt.
+        // 3.7 rejected thinkingLevel 'minimal' (low|medium|high only), unlike 3.5/3.6 — 3.8 untested
+        // on 'minimal', so keep the pin at 'medium' or above.
+        displayName: 'Gemini 3.8 Flash',
+        modelApiName: 'gemini-3.8-flash',
         apiKeyName: API_KEY_CONSTANTS.GOOGLE,
         hasThinking: true,
         reasoningEffort: 'medium',
@@ -656,9 +657,9 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         extendedContextThresholdTokens: 200_000
     },
     [SupportedAiModels[LLM_CONSTANTS.GEMINI_FLASH].modelApiName]: {
-        // Launch pricing through 2026-12-31; doubles to $1.50/$7.50/$0.15 on 2027-01-01
-        // (ai.google.dev pricing page, fetched 2026-08-13) — ACTION NEEDED then: update these
-        // rates.
+        // 3.8 Flash (2026-09-02) launched at the same rates as 3.7. 3.7's launch pricing was
+        // scheduled to double to $1.50/$7.50/$0.15 on 2027-01-01 (ai.google.dev pricing page,
+        // fetched 2026-08-13) — ACTION NEEDED then: re-check whether 3.8 follows and update.
         // Cache storage cost ($0.50 / 1M tokens per hour) is not tracked here — the
         // schema only models per-token call costs, not time-based storage.
         inputPrice: 0.75,
