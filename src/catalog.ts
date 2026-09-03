@@ -58,6 +58,7 @@ export const LLM_CONSTANTS = {
     DEEPSEEK_PRO: 'deepseek-pro',
     // GPT-5.6 family. 'gpt' and 'gpt-mini' are stable picker ids carried over from the
     // GPT-5.5 / GPT-5.4-mini era so existing consumers keep working across the repoint.
+    GPT_ASTRA: 'gpt-astra',
     GPT_SOL: 'gpt-sol',
     GPT: 'gpt',
     GPT_MINI: 'gpt-mini',
@@ -200,6 +201,17 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     },
 
     // Models with always-on reasoning
+    // GPT-6 Astra (2026-09-03): OpenAI's frontier tier above Sol. No `none` reasoning effort;
+    // temperature/top_p are rejected — Gpt5Agent sends neither, so the same agent serves it.
+    // The catalog temperature is only carried for the agent constructor signature.
+    [LLM_CONSTANTS.GPT_ASTRA]: {
+        displayName: 'GPT-6 Astra',
+        modelApiName: 'gpt-6-astra',
+        apiKeyName: API_KEY_CONSTANTS.OPENAI,
+        hasThinking: true,
+        temperature: 1,
+        tags: ['expensive'],
+    },
     // GPT-5.6 family (promoted July 2026 when the limited preview opened up):
     // sol is the flagship, terra the mainline, luna the cheap tier.
     [LLM_CONSTANTS.GPT_SOL]: {
@@ -549,6 +561,20 @@ export const DEEPSEEK_PEAK_SCHEDULE: PeakPricing = {
  * All prices are per million (1,000,000) tokens
  */
 export const MODEL_PRICING: Record<string, ModelPricing> = {
+    // OpenAI GPT-6 Astra (developers.openai.com/api/docs/pricing, 2026-09-03): $10/$50 cache-hit $1
+    // short context, $20/$75 cache-hit $2 long context. OpenAI's pricing table doesn't restate
+    // the boundary; we assume the same 272k threshold as the GPT-5.6 siblings. Cache writes
+    // ($12.50/$25) are not modelled — caching is automatic and we only see hits.
+    [SupportedAiModels[LLM_CONSTANTS.GPT_ASTRA].modelApiName]: {
+        inputPrice: 10.000,
+        outputPrice: 50.000,
+        cacheHitPrice: 1.000,
+        extendedContextInputPrice: 20.000,
+        extendedContextOutputPrice: 75.000,
+        extendedContextCacheHitPrice: 2.000,
+        extendedContextThresholdTokens: 272_000
+    },
+
     // OpenAI GPT-5.6 models
     // Sol repriced 2026-08-30 (developers.openai.com/api/docs/pricing): $4/$20 short context,
     // $8/$30 past the long-context threshold — the same 272k boundary its siblings use.

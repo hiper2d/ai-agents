@@ -136,6 +136,7 @@ const THINKING_GUARANTEED = new Set<string>([
 // GPT-5's plain-text path cannot surface thinking (OpenAI never exposes chain-of-thought),
 // so it must return an empty string.
 const THINKING_ALWAYS_EMPTY = new Set<string>([
+    LLM_CONSTANTS.GPT_ASTRA,
     LLM_CONSTANTS.GPT_SOL,
     LLM_CONSTANTS.GPT,
     LLM_CONSTANTS.GPT_MINI,

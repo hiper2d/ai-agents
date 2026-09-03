@@ -39,6 +39,7 @@ export class AgentFactory {
                 return new ClaudeAgent(name, instruction, model.modelApiName, key, shouldEnableThinking);
 
             // Always-on reasoning models
+            case LLM_CONSTANTS.GPT_ASTRA:
             case LLM_CONSTANTS.GPT_SOL:
             case LLM_CONSTANTS.GPT:
             case LLM_CONSTANTS.GPT_MINI:
