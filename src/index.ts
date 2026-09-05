@@ -4,6 +4,7 @@
  * Schema-validated asks (Zod), thinking extraction and CoT-leak defense, a model catalog
  * with per-model tuning defaults and `createCatalog(overrides)`, token usage extraction,
  * and cost accounting (cache tiers, extended context, peak-valley pricing) for 11 providers.
+ * Plus voice agents: text-to-speech and speech-to-text for OpenAI and Gemini behind one factory.
  */
 
 // Core types
@@ -73,6 +74,9 @@ export type {
     GoogleTokenUsage,
     MistralTokenUsage,
 } from './pricing';
+
+// Voice agents (speech + transcription): provider factory, model ids, prices, cores
+export * from './voice';
 
 // Agents
 export { AbstractAgent } from './agents/abstract-agent';

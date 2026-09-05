@@ -56,6 +56,24 @@ import { createCatalog } from '@hiper2d/ai-agents';
 const catalog = createCatalog({ glm: { temperature: 0.9 } }); // shallow per-model overrides
 ```
 
+### Voice agents
+
+Speech and transcription behind the same factory pattern. Agents are pure — no auth or
+billing — and every result reports its cost so the host decides whom to charge.
+
+```ts
+import { VoiceAgentFactory, API_KEY_CONSTANTS } from '@hiper2d/ai-agents';
+
+const voice = VoiceAgentFactory.createAgentFromKeys('google', { [API_KEY_CONSTANTS.GOOGLE]: process.env.GOOGLE_API_KEY! });
+const { audio, costUSD } = await voice.speak({ text: 'Night falls.', voice: 'Kore', voiceStyle: 'gravely' }); // WAV
+const { text } = await voice.transcribe({ audio: recording, mimeType: 'audio/webm' });
+```
+
+`openai` runs gpt-4o-mini-tts + Whisper, `google` runs Gemini 3.1 Flash TTS + Gemini 3.5
+Transcribe (`VOICE_MODEL_CONSTANTS`, prices in `VOICE_MODEL_PRICING`). The `voiceStyle`
+direction works for both providers: OpenAI takes it as instructions, Gemini gets it folded
+into the prompt ("Say gravely: …").
+
 ### Logging
 
 The library logs through an injectable sink — `setLlmLogger(fn)` — so a host app can route
