@@ -56,13 +56,20 @@ export class Gpt5Agent extends AbstractAgent {
                 ...this.prepareMessages(messages).map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
             ].join('\n\n');
 
-            // Extend schema with thinking field if enabled
-            let schemaToSend: z.ZodSchema<any> = zodSchema;
-            if (this.enableThinking && zodSchema instanceof z.ZodObject) {
-                schemaToSend = zodSchema.extend({
-                    thinking: z.string().describe("Your internal chain-of-thought reasoning process used to arrive at the final answer.")
-                });
-            }
+            // The caller's schema is sent as-is. A `thinking` field used to be appended here when
+            // thinking was enabled, and it caused a serious failure mode (measured 2026-09-05):
+            // OpenAI never exposes chain-of-thought, so the model had nothing to put in the field
+            // and returned `"thinking":""` at best. Strict structured outputs emit keys in schema
+            // order, so the injected field came LAST — and instead of committing to the empty
+            // string, the model would drift into whitespace, which the JSON grammar permits
+            // everywhere, until max_output_tokens cut the generation off one character short of a
+            // closing brace. The response then failed JSON.parse and billed the full output cap.
+            // A/B on gpt-6-astra, same casting prompt, 5 reps each: 3/5 runaways with the field,
+            // 0/5 without. gpt-5.6-luna hit the identical failure once in a full pipeline run,
+            // though its rate is far lower (0/5 on both arms of the same A/B), and gpt-5.6-sol /
+            // gpt-5.6-terra were clean across 10 calls — the exposure scales with how eager a
+            // model is to pad. Do not reintroduce the injection.
+            const schemaToSend: z.ZodSchema<any> = zodSchema;
 
             let response;
             try {
@@ -104,7 +111,9 @@ export class Gpt5Agent extends AbstractAgent {
                 throw new ModelInvalidResponseError(this.model, this.errorMessages.invalidFormat);
             }
 
-            // Extract reasoning content from output if available
+            // Reasoning content, only if the CALLER's own schema declares a thinking field — this
+            // agent no longer adds one (see above), and OpenAI does not expose chain-of-thought,
+            // so for most callers this stays empty.
             let reasoningContent = "";
             if (this.enableThinking && (response.output_parsed as any).thinking) {
                 reasoningContent = (response.output_parsed as any).thinking;
