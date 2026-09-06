@@ -35,11 +35,28 @@ describe('prompt cache tiers', () => {
         expect(system).toHaveLength(2);
         for (const block of system) {
             expect(block.type).toBe('text');
-            expect(block.cache_control).toEqual({ type: 'ephemeral' });
+            expect(block.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
             expect(block.text).not.toContain('CACHE_TIER_BREAK');
         }
         expect(system[0].text).toContain('collaborative text adventure');
         expect(system[1].text).toContain('Mira');
+    });
+
+    it('ClaudeAgent applies cacheTtl to every breakpoint it places', () => {
+        const agent = new ClaudeAgent('Mira', assistantPrompt(), 'claude-sonnet-5', 'test-key');
+        agent.cacheTtl = '5m';
+        for (const block of (agent as any).defaultParams.system) {
+            expect(block.cache_control).toEqual({ type: 'ephemeral', ttl: '5m' });
+        }
+        const messages = [
+            { role: 'user', content: 'first prompt' },
+            { role: 'assistant', content: 'reply' },
+            { role: 'user', content: 'current prompt' },
+        ];
+        (agent as any).applyCacheBreakpoint(messages);
+        expect(messages[1].content).toEqual([
+            { type: 'text', text: 'reply', cache_control: { type: 'ephemeral', ttl: '5m' } },
+        ]);
     });
 
     it('ClaudeAgent falls back to a single system block for marker-free prompts', () => {
@@ -59,7 +76,7 @@ describe('prompt cache tiers', () => {
         ];
         (agent as any).applyCacheBreakpoint(messages);
         expect(messages[2].content).toEqual([
-            { type: 'text', text: 'current prompt', cache_control: { type: 'ephemeral' } },
+            { type: 'text', text: 'current prompt', cache_control: { type: 'ephemeral', ttl: '1h' } },
         ]);
         expect(typeof messages[3].content).toBe('string'); // tail untouched
     });

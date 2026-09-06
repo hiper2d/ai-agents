@@ -3,11 +3,17 @@ import OpenAI from "openai";
 import { ModelError, ModelInvalidResponseError } from "../errors";
 import { AIMessage, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
 import { calculateOpenAICost } from "../pricing";
+import { stableHashHex } from "../text-utils";
 import { z } from 'zod';
 import { zodTextFormat } from 'openai/helpers/zod';
 
 export class Gpt5Agent extends AbstractAgent {
     private readonly client: OpenAI;
+    // Routing hint for OpenAI's prefix cache (same scheme as the Mistral/Grok agents): one
+    // key per agent+instruction, so an agent's own calls group together instead of every
+    // agent that shares a static prefix hashing to the same route. Keys influence routing
+    // only; they do not guarantee a hit.
+    private readonly promptCacheKey: string;
 
     // Log message templates
     private readonly logTemplates = {
@@ -33,6 +39,7 @@ export class Gpt5Agent extends AbstractAgent {
         agentLoggingConfig: AgentLoggingConfig = DEFAULT_LOGGING_CONFIG.agents
     ) {
         super(name, instruction, model, temperature, enableThinking, agentLoggingConfig);
+        this.promptCacheKey = stableHashHex(`${name}\n${instruction}`);
         this.client = new OpenAI({
             apiKey: apiKey,
         });
@@ -50,11 +57,13 @@ export class Gpt5Agent extends AbstractAgent {
             this.logAsking(messages);
             this.logMessages(messages);
 
-            // Combine system instruction with messages for the input
-            const input = [
-                `System: ${this.instruction}`,
-                ...this.prepareMessages(messages).map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-            ].join('\n\n');
+            // The system prompt travels ONLY as `instructions`. It used to be prepended to
+            // `input` as well ("System: ..."), which billed every system token twice: on the
+            // werewolf game's first-turn prompt, OpenAI bots measured ~5.1-5.5K input tokens
+            // against ~3.2-3.5K for the same prompt on other providers (2026-09-06).
+            const input = this.prepareMessages(messages)
+                .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+                .join('\n\n');
 
             // The caller's schema is sent as-is. A `thinking` field used to be appended here when
             // thinking was enabled, and it caused a serious failure mode (measured 2026-09-05):
@@ -78,6 +87,7 @@ export class Gpt5Agent extends AbstractAgent {
                     instructions: this.instruction,
                     input: input,
                     max_output_tokens: this.maxOutputTokens,
+                    prompt_cache_key: this.promptCacheKey,
                     text: {
                         format: zodTextFormat(schemaToSend, "response_schema"),
                     }
@@ -179,17 +189,20 @@ export class Gpt5Agent extends AbstractAgent {
             this.logAsking(messages);
             this.logMessages(messages);
 
-            // Combine system instruction with messages for the input
-            const input = [
-                `System: ${this.instruction}`,
-                ...this.prepareMessages(messages).map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-            ].join('\n\n');
+            // The system prompt travels ONLY as `instructions`. It used to be prepended to
+            // `input` as well ("System: ..."), which billed every system token twice: on the
+            // werewolf game's first-turn prompt, OpenAI bots measured ~5.1-5.5K input tokens
+            // against ~3.2-3.5K for the same prompt on other providers (2026-09-06).
+            const input = this.prepareMessages(messages)
+                .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+                .join('\n\n');
 
             const response = await this.client.responses.create({
                 model: this.model,
                 instructions: this.instruction,
                 input: input,
                 max_output_tokens: this.maxOutputTokens,
+                prompt_cache_key: this.promptCacheKey,
             });
 
             const content = response.output_text;

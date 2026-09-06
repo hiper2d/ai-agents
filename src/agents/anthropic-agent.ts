@@ -17,10 +17,12 @@ interface ThinkingBlock {
     signature?: string;  // Required for Claude 4+ multi-turn conversations
 }
 
+type CacheTtl = '5m' | '1h';
+
 interface TextBlock {
     type: 'text';
     text: string;
-    cache_control?: { type: 'ephemeral' };
+    cache_control?: { type: 'ephemeral'; ttl?: CacheTtl };
 }
 
 type ContentBlock = ThinkingBlock | TextBlock;
@@ -32,13 +34,24 @@ interface AnthropicMessage {
 
 export class ClaudeAgent extends AbstractAgent {
     private readonly client: Anthropic;
+    /**
+     * TTL for every breakpoint this agent places (system tiers and the message anchor).
+     * Anthropic bills a 5m write at 1.25x input, a 1h write at 2x, reads at 0.1x, and a read
+     * refreshes the timer on either TTL. Default '1h' because the main consumer runs at human
+     * pace: consecutive calls for one agent measured 12-78 minutes apart, so 5m entries
+     * expired before they were ever read (0-16% hit rate over 30 days, hits only on gaps
+     * under five minutes). Set '5m' for continuous traffic where every call lands inside the
+     * window; there the cheaper write wins. One knob for all breakpoints on purpose: Anthropic
+     * requires 1h entries to precede 5m ones, and a single TTL keeps that trivially true.
+     */
+    cacheTtl: CacheTtl = '1h';
     // System-prompt breakpoints, one per cache tier (see CACHE_TIER_MARKER):
-    //   block 1 — shared static rules, byte-identical across all bots and games with the
-    //             same rule set, so one org-level entry serves everyone and ANY bot's call
-    //             refreshes its TTL;
-    //   block 2 — per-bot identity + game state + summaries, byte-stable from the start of
-    //             a game day through the end of its night (deaths/role knowledge/summaries
-    //             only change in startNewDay), so every call within a day reads it.
+    //   block 1 - shared static rules, byte-identical across all bots and games with the
+    //             same rule set. Caches are scoped per model, so one entry serves every bot
+    //             ON THAT MODEL (not the whole lobby), and any of their calls refreshes it;
+    //   block 2 - per-bot identity + game state + summaries, byte-stable between the game's
+    //             state writes (a lynch, the night resolution, the summary rewrite, the new
+    //             day), so every call inside one of those windows reads it.
     // GM prompts have no marker → single block, same behavior as before. Haiku 4.5 needs a
     // 4096-token cacheable prefix, so tiers below that silently no-op on Haiku — expected.
     // A getter, not a field: `maxOutputTokens` can be raised after construction, and a field
@@ -47,7 +60,7 @@ export class ClaudeAgent extends AbstractAgent {
         return {
             max_tokens: this.maxOutputTokens,
             system: this.instructionParts.map(part => (
-                { type: 'text' as const, text: part, cache_control: { type: 'ephemeral' as const } }
+                { type: 'text' as const, text: part, cache_control: { type: 'ephemeral' as const, ttl: this.cacheTtl } }
             )),
             model: this.model,
         };
@@ -186,7 +199,7 @@ export class ClaudeAgent extends AbstractAgent {
         const anchor = messages[messages.length - 2];
         if (typeof anchor.content === 'string') {
             if (anchor.content.length > 0) {
-                anchor.content = [{ type: 'text', text: anchor.content, cache_control: { type: 'ephemeral' } }];
+                anchor.content = [{ type: 'text', text: anchor.content, cache_control: { type: 'ephemeral', ttl: this.cacheTtl } }];
             }
             return;
         }
@@ -194,7 +207,7 @@ export class ClaudeAgent extends AbstractAgent {
         for (let i = anchor.content.length - 1; i >= 0; i--) {
             const block = anchor.content[i];
             if (block.type === 'text' && block.text.length > 0) {
-                block.cache_control = { type: 'ephemeral' };
+                block.cache_control = { type: 'ephemeral', ttl: this.cacheTtl };
                 return;
             }
         }
