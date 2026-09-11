@@ -74,6 +74,28 @@ Transcribe (`VOICE_MODEL_CONSTANTS`, prices in `VOICE_MODEL_PRICING`). The `voic
 direction works for both providers: OpenAI takes it as instructions, Gemini gets it folded
 into the prompt ("Say gravely: …").
 
+### Budget control
+
+Per-subject spend caps (a user, a tenant, a job) over UTC day and month windows. Pure and
+storage-agnostic: period keys, an O(1) rolling ledger that is overwritten when the period
+rolls, a verdict function, and `BudgetExceededError` carrying the verdict (`resetsAt`,
+`remainingUSD`) so the host can render "come back at …" instead of a provider failure.
+
+```ts
+import { BudgetController, InMemorySpendStore, BudgetExceededError } from '@hiper2d/ai-agents';
+
+const budget = new BudgetController(new InMemorySpendStore(), {
+  limits: [{ window: 'day', limitUSD: 5 }, { window: 'month', limitUSD: 20 }],
+});
+await budget.assertWithinBudget(userId);          // cheap pre-call guard, throws BudgetExceededError
+const { costUSD } = await agent.ask(...);
+await budget.record(userId, costUSD);              // re-checks inside the store's atomic update
+```
+
+Hosts that bill inside their own database transaction skip the controller and call the
+pure pieces there: `ledgerSpend` → `evaluateBudget` → `applySpend`. Implement `SpendStore`
+to back the controller with Redis, Postgres, Firestore, etc.
+
 ### Logging
 
 The library logs through an injectable sink — `setLlmLogger(fn)` — so a host app can route

@@ -4,7 +4,8 @@
  * Schema-validated asks (Zod), thinking extraction and CoT-leak defense, a model catalog
  * with per-model tuning defaults and `createCatalog(overrides)`, token usage extraction,
  * and cost accounting (cache tiers, extended context, peak-valley pricing) for 11 providers.
- * Plus voice agents: text-to-speech and speech-to-text for OpenAI and Gemini behind one factory.
+ * Plus voice agents: text-to-speech and speech-to-text for OpenAI and Gemini behind one factory,
+ * and storage-agnostic budget control (per-subject daily/monthly spend caps).
  */
 
 // Core types
@@ -77,6 +78,10 @@ export type {
 
 // Voice agents (speech + transcription): provider factory, model ids, prices, cores
 export * from './voice';
+
+// Budget control: UTC day/month period keys, O(1) rolling spend ledger, verdicts,
+// BudgetExceededError, and a store-backed BudgetController for check-before/record-after.
+export * from './budget';
 
 // Agents
 export { AbstractAgent } from './agents/abstract-agent';
