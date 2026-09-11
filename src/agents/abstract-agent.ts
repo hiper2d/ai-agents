@@ -4,6 +4,21 @@ import { logger } from "../logger";
 import { CACHE_TIER_MARKER } from "../cache-tier";
 import { DEFAULT_MAX_OUTPUT_TOKENS, getModelConfigByApiName, ReasoningEffort } from "../catalog";
 
+/**
+ * Runs before every ask on every LLM agent, with the agent about to call the provider.
+ * Throw to refuse the call (nothing is sent). The intended use is budget control: a host
+ * installs one hook that reads `agent.userId` and asserts the subject's spend budget, so
+ * no call site can forget the check. Async hooks are awaited.
+ */
+export type BeforeAskHook = (agent: AbstractAgent) => void | Promise<void>;
+
+let beforeAskHook: BeforeAskHook | undefined;
+
+/** Install (or clear, with no argument) the process-wide pre-ask hook. Call once at startup. */
+export function setBeforeAskHook(hook?: BeforeAskHook): void {
+    beforeAskHook = hook;
+}
+
 export abstract class AbstractAgent {
     name: string;
     gameId?: string;
@@ -66,6 +81,7 @@ export abstract class AbstractAgent {
      * must NOT override these.
      */
     async askWithZodSchema<T>(zodSchema: z.ZodSchema<T>, messages: AIMessage[]): Promise<[T, string, TokenUsage?, string?]> {
+        if (beforeAskHook) await beforeAskHook(this);
         const startedAt = Date.now();
         try {
             const [result, thinking, usage, signature] = await this.doAskWithZodSchema(zodSchema, messages);
@@ -77,6 +93,7 @@ export abstract class AbstractAgent {
     }
 
     async askText(messages: AIMessage[]): Promise<[string, string, TokenUsage?, string?]> {
+        if (beforeAskHook) await beforeAskHook(this);
         const startedAt = Date.now();
         try {
             const [content, thinking, usage, signature] = await this.doAskText(messages);

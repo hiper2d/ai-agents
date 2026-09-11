@@ -96,6 +96,15 @@ Hosts that bill inside their own database transaction skip the controller and ca
 pure pieces there: `ledgerSpend` → `evaluateBudget` → `applySpend`. Implement `SpendStore`
 to back the controller with Redis, Postgres, Firestore, etc.
 
+To guard every LLM call without touching call sites, install a process-wide pre-ask hook
+once at startup. It runs before each `askText` / `askWithZodSchema` with the agent, so a
+throwing hook refuses the call before anything reaches the provider:
+
+```ts
+import { setBeforeAskHook } from '@hiper2d/ai-agents';
+setBeforeAskHook(async agent => { if (agent.userId) await budget.assertWithinBudget(agent.userId); });
+```
+
 ### Logging
 
 The library logs through an injectable sink — `setLlmLogger(fn)` — so a host app can route
