@@ -1,7 +1,7 @@
 import { AbstractAgent } from "./abstract-agent";
 import { stableHashHex } from "../text-utils";
 import { Mistral } from "@mistralai/mistralai";
-import { HTTPClient } from "@mistralai/mistralai/lib/http";
+import { HTTPClient } from "@mistralai/mistralai/lib/http.js";
 import { ChatCompletionResponse } from "@mistralai/mistralai/models/components";
 import { AIMessage, MESSAGE_ROLE, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
 import { cleanResponse } from "../text-utils";

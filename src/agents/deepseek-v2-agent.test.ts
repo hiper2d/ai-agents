@@ -13,7 +13,7 @@ import { DeepSeekV2Agent } from './deepseek-v2-agent';
 
 const MESSAGES: AIMessage[] = [{ role: 'user', content: 'Say something.' }];
 
-function makeAgent(completion: any, model = 'deepseek-v4-flash', thinking = true) {
+function makeAgent(completion: any, model = 'deepseek-flash', thinking = true) {
   const agent = new DeepSeekV2Agent('Mira', 'instruction', model, 'key', 0.7, thinking, SILENT_LOGGING);
   const captured: { params?: any } = {};
   (agent as any).client = {
@@ -61,7 +61,7 @@ describe('DeepSeekV2Agent request shape', () => {
   });
 
   it('sends thinking disabled and no reasoning_effort when thinking is off', async () => {
-    const { agent, captured } = makeAgent(textCompletion, 'deepseek-v4-flash', false);
+    const { agent, captured } = makeAgent(textCompletion, 'deepseek-flash', false);
     await agent.askText(MESSAGES);
 
     // Thinking is on by default server-side, so "off" must be sent explicitly (top-level —

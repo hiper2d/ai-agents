@@ -183,9 +183,11 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // knob exists) both models emitted ~8 reasoning tokens per answer token in prod
     // (requestStats 30d: flash p50 8.9s / p90 36s, pro p50 18.9s / p90 56s) and a 15-bot story
     // took 68-105s. Latency tracks reasoning length ~linearly, so effort is the only lever.
+    // Flash moved to V4.1 2026-09-12: the API id is now the version-free alias `deepseek-flash`
+    // (the retired `deepseek-v4-flash` still resolves to V4.1 server-side at the Flash price).
     [LLM_CONSTANTS.DEEPSEEK_FLASH]: {
-        displayName: 'DeepSeek V4 Flash',
-        modelApiName: 'deepseek-v4-flash',
+        displayName: 'DeepSeek V4.1 Flash',
+        modelApiName: 'deepseek-flash',
         apiKeyName: API_KEY_CONSTANTS.DEEPSEEK,
         hasThinking: true,
         reasoningEffort: 'low',
@@ -638,10 +640,12 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     // (api-docs.deepseek.com/quick_start/pricing, fetched 2026-08-13; rates re-confirmed
     // 2026-08-30). Since 2026-08-23 00:00 Beijing (UTC+8) the surcharge is weekdays-only:
     // Saturday and Sunday Beijing time bill at the off-peak rate all day (DeepSeek notice email).
+    // 2026-09-12: Flash is V4.1 at lower rates ($0.15 / $0.60, cache hit $0.003 off-peak);
+    // Pro rates unchanged and DeepSeek confirmed Pro stays available past 2026-09-14.
     [SupportedAiModels[LLM_CONSTANTS.DEEPSEEK_FLASH].modelApiName]: {
-        inputPrice: 0.22,
-        outputPrice: 0.66,
-        cacheHitPrice: 0.007,
+        inputPrice: 0.15,
+        outputPrice: 0.60,
+        cacheHitPrice: 0.003,
         peakPricing: DEEPSEEK_PEAK_SCHEDULE
     },
     [SupportedAiModels[LLM_CONSTANTS.DEEPSEEK_PRO].modelApiName]: {

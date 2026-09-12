@@ -85,8 +85,8 @@ describe('Token Usage Utils', () => {
 
     describe('calculateCost', () => {
         it('should calculate cost for known models', () => {
-            const pricing = MODEL_PRICING['deepseek-v4-flash'];
-            const cost = calculateCost('deepseek-v4-flash', 1_000_000, 500_000);
+            const pricing = MODEL_PRICING['deepseek-flash'];
+            const cost = calculateCost('deepseek-flash', 1_000_000, 500_000);
 
             const expectedCost =
                 (1_000_000 * pricing.inputPrice) / 1_000_000 +
@@ -96,8 +96,8 @@ describe('Token Usage Utils', () => {
         });
 
         it('should calculate cost with cache hits', () => {
-            const pricing = MODEL_PRICING['deepseek-v4-flash'];
-            const cost = calculateCost('deepseek-v4-flash', 1_000_000, 500_000, { cacheHitTokens: 500_000 });
+            const pricing = MODEL_PRICING['deepseek-flash'];
+            const cost = calculateCost('deepseek-flash', 1_000_000, 500_000, { cacheHitTokens: 500_000 });
 
             const expectedCost =
                 (500_000 * pricing.inputPrice) / 1_000_000 +
@@ -232,7 +232,7 @@ describe('Token Usage Utils', () => {
                 }
             };
 
-            const result = extractUsageAndCalculateCost('deepseek-v4-flash', mockResponse);
+            const result = extractUsageAndCalculateCost('deepseek-flash', mockResponse);
 
             expect(result).not.toBeNull();
             expect(result!.usage).toEqual({
@@ -242,7 +242,7 @@ describe('Token Usage Utils', () => {
                 cacheHitTokens: 200000
             });
 
-            const pricing = MODEL_PRICING['deepseek-v4-flash'];
+            const pricing = MODEL_PRICING['deepseek-flash'];
             // Verify cost calculation: 800K uncached + 200K cached + 500K output
             const expectedCost =
                 (800_000 * pricing.inputPrice) / 1_000_000 +
@@ -252,8 +252,8 @@ describe('Token Usage Utils', () => {
         });
 
         it('should return null for invalid responses', () => {
-            expect(extractUsageAndCalculateCost('deepseek-v4-flash', null)).toBeNull();
-            expect(extractUsageAndCalculateCost('deepseek-v4-flash', {})).toBeNull();
+            expect(extractUsageAndCalculateCost('deepseek-flash', null)).toBeNull();
+            expect(extractUsageAndCalculateCost('deepseek-flash', {})).toBeNull();
         });
     });
 

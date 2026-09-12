@@ -105,7 +105,7 @@ describe('prompt cache tiers', () => {
             { role: 'user', content: 'narrator prompt' },
             { role: 'user', content: 'reminder' },
         ];
-        const deepseek = new DeepSeekV2Agent('Mira', 'instruction', 'deepseek-v4-flash', 'test-key', 0.6);
+        const deepseek = new DeepSeekV2Agent('Mira', 'instruction', 'deepseek-flash', 'test-key', 0.6);
         const merged = (deepseek as any).prepareMessages(history);
         expect(merged).toHaveLength(2);
         expect(merged[1].content).toBe('narrator prompt\n\nreminder');
