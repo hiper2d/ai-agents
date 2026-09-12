@@ -96,3 +96,13 @@ describe('VoiceAgentFactory', () => {
         }
     });
 });
+
+describe('describeEmptyTtsResponse', () => {
+    const { describeEmptyTtsResponse } = require('./google-tts');
+    it('names the finish reason, block reason and any text Google sent instead of audio', () => {
+        expect(describeEmptyTtsResponse({ candidates: [{ finishReason: 'OTHER', content: { parts: [] } }] })).toBe('finishReason=OTHER, no parts');
+        expect(describeEmptyTtsResponse({ candidates: [], promptFeedback: { blockReason: 'SAFETY' } })).toBe('finishReason=none, no candidates, blockReason=SAFETY, no parts');
+        expect(describeEmptyTtsResponse({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: 'I cannot voice that.' }] } }] })).toBe('finishReason=STOP, text="I cannot voice that."');
+        expect(describeEmptyTtsResponse(undefined)).toBe('finishReason=none, no candidates, no parts');
+    });
+});

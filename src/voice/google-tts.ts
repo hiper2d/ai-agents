@@ -65,6 +65,28 @@ export function pcmToWav(pcmData: Uint8Array, sampleRate = SAMPLE_RATE): ArrayBu
 }
 
 /**
+ * Why a 200 came back without audio. Gemini occasionally returns an empty candidate
+ * (a transient `OTHER` / `RECITATION` finish, a safety block reported in
+ * promptFeedback, or a text part instead of audio); naming it in the error is the
+ * difference between a diagnosable log line and "no audio data".
+ */
+export function describeEmptyTtsResponse(response: any): string {
+    const candidate = response?.candidates?.[0];
+    const parts: any[] = candidate?.content?.parts ?? [];
+    const bits: string[] = [];
+    bits.push(`finishReason=${candidate?.finishReason ?? 'none'}`);
+    if (!response?.candidates?.length) bits.push('no candidates');
+    const block = response?.promptFeedback?.blockReason;
+    if (block) bits.push(`blockReason=${block}`);
+    const text = parts.map(p => typeof p?.text === 'string' ? p.text : '').join(' ').trim();
+    if (text) bits.push(`text="${text.slice(0, 120)}"`);
+    const otherMimes = parts.map(p => p?.inlineData?.mimeType).filter(Boolean);
+    if (otherMimes.length) bits.push(`inlineData=${otherMimes.join(',')}`);
+    if (!parts.length) bits.push('no parts');
+    return bits.join(', ');
+}
+
+/**
  * Core Gemini TTS call: text + API key in, WAV + token usage out.
  *
  * Uses generateContent rather than the newer Interactions API the docs show:
@@ -86,10 +108,11 @@ export async function generateGoogleTtsAudio(
         } as any,
     });
 
-    const parts: any[] = (response as any).candidates?.[0]?.content?.parts ?? [];
+    const candidate = (response as any).candidates?.[0];
+    const parts: any[] = candidate?.content?.parts ?? [];
     const audioPart = parts.find(part => part.inlineData?.mimeType?.startsWith('audio/'));
     if (!audioPart?.inlineData?.data) {
-        throw new Error('No audio data in Google TTS response');
+        throw new Error(`No audio data in Google TTS response (${describeEmptyTtsResponse(response)})`);
     }
     const pcmData = new Uint8Array(Buffer.from(audioPart.inlineData.data as string, 'base64'));
 
