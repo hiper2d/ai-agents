@@ -441,7 +441,10 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // encrypted reasoning items replayed across turns like Grok. 'medium' is pinned as the
     // game default: turns are short and every reasoning token bills as output.
     // Temperature: Meta documents the model as tuned to its 1.0 default.
-    // Speed/tags: unmeasured until the first live run — no tag rather than a guess.
+    // Speed: measured 2026-09-12 at medium effort — 9.6s on a full-context day-2 vote, 4-8s on
+    // short turns (reasoning ≈ 90% of output tokens). That is the untagged middle band by the
+    // grading above; tagged 'slow' anyway by decision so players expect a wait. Price-wise it
+    // is neither cheap nor expensive.
     [LLM_CONSTANTS.MUSE_SPARK]: {
         displayName: 'Muse Spark 1.3',
         modelApiName: 'muse-spark-1.3',
@@ -449,6 +452,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         hasThinking: true,
         temperature: 1,
         reasoningEffort: 'medium',
+        tags: ['slow'],
     },
 };
 
