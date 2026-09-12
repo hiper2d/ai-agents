@@ -74,6 +74,32 @@ Transcribe (`VOICE_MODEL_CONSTANTS`, prices in `VOICE_MODEL_PRICING`). The `voic
 direction works for both providers: OpenAI takes it as instructions, Gemini gets it folded
 into the prompt ("Say gravely: …").
 
+### Images and portrait sheets (`@hiper2d/ai-agents/images`)
+
+A separate entry for hosts that draw pictures. `generateImage` is one Gemini image call
+that reports its cost; `drawPortraitSheet` draws a whole cast as one grid of bust
+portraits and cuts it into one 3:4 card per character — one image call whether the cast
+is three or sixteen, all in one consistent style. The divider lines the model draws are
+read off the pixels (rows drift), and the kept sheet plus per-card framing let the host
+re-cut any card later at a new crop. The library never imports sharp: pass your own
+instance in, so text-only consumers pull in nothing native.
+
+```ts
+import { drawPortraitSheet, cutCard } from '@hiper2d/ai-agents/images';
+
+const sharp = (await import('sharp')).default;
+const { portraits, sheet, costUSD } = await drawPortraitSheet(googleKey, sharp, {
+    purpose: 'a social deduction game',
+    setting: { title: 'Harbor of Glass', description: 'A rain-soaked port city of lantern-lit canals.' },
+    artStyle: 'ink and watercolor',
+    cells: cast.map(c => ({ key: c.id, label: c.name, prompt: `(${c.gender}) "${c.name}" — ${c.look}` })),
+});
+// portraits[i].jpeg is a 600x800 card, portraits[i].framing says where it sits on sheet.jpeg
+```
+
+The pure geometry (`fitFraming`, `circleFocus`, `focusToBackground`, …) is safe in a
+browser bundle for reframe editors and avatar renderers.
+
 ### Budget control
 
 Per-subject spend caps (a user, a tenant, a job) over UTC day and month windows. Pure and
