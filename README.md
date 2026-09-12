@@ -1,6 +1,6 @@
 # @hiper2d/ai-agents
 
-Multi-provider AI agent layer for TypeScript apps: one `AbstractAgent` interface over 11 LLM
+Multi-provider AI agent layer for TypeScript apps: one `AbstractAgent` interface over 12 LLM
 providers, schema-validated JSON asks (zod), reasoning/thinking extraction, a model catalog
 with per-model tuning defaults, and token cost accounting (cache tiers, extended context,
 peak-valley pricing).

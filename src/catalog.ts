@@ -24,7 +24,8 @@ export const API_KEY_CONSTANTS = {
     Z_AI: 'Z_AI_API_KEY',
     FUGU: 'FUGU_API_KEY',
     QWEN: 'QWEN_API_KEY',
-    MINIMAX: 'MINIMAX_API_KEY'
+    MINIMAX: 'MINIMAX_API_KEY',
+    META: 'META_API_KEY'
 } as const;
 
 export const SupportedAiKeyNames: Record<string, string> = {
@@ -38,7 +39,8 @@ export const SupportedAiKeyNames: Record<string, string> = {
     [API_KEY_CONSTANTS.Z_AI]: 'Z.AI',
     [API_KEY_CONSTANTS.FUGU]: 'Sakana Fugu',
     [API_KEY_CONSTANTS.QWEN]: 'Qwen',
-    [API_KEY_CONSTANTS.MINIMAX]: 'MiniMax'
+    [API_KEY_CONSTANTS.MINIMAX]: 'MiniMax',
+    [API_KEY_CONSTANTS.META]: 'Meta'
 };
 
 // Naming rule: a constant's NAME is its id in upper snake case (CLAUDE_SONNET === 'claude-sonnet').
@@ -80,6 +82,8 @@ export const LLM_CONSTANTS = {
     QWEN_FLASH: 'qwen-flash',
     // MiniMax. Single M3 entry; stable id without the version for the same repoint reason.
     MINIMAX: 'minimax',
+    // Meta Model API (api.meta.ai). Muse Spark; version-free id so a 1.3 → 1.4 repoint is entry-only.
+    MUSE_SPARK: 'muse-spark',
 }
 
 /**
@@ -428,6 +432,23 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         hasThinking: true,
         temperature: 1,
         tags: ['very-slow', 'cheap'],
+    },
+
+    // Meta Muse Spark 1.3 (added 2026-09-12) on Meta's own Model API — Standard tier, i.e.
+    // the private model id (the `-contributor` id is a quarter of the price but Meta trains
+    // on the prompts). Always-on reasoning with an effort dial (minimal … max, "none" is
+    // rejected); the chain of thought is never returned, only an optional summary, plus
+    // encrypted reasoning items replayed across turns like Grok. 'medium' is pinned as the
+    // game default: turns are short and every reasoning token bills as output.
+    // Temperature: Meta documents the model as tuned to its 1.0 default.
+    // Speed/tags: unmeasured until the first live run — no tag rather than a guess.
+    [LLM_CONSTANTS.MUSE_SPARK]: {
+        displayName: 'Muse Spark 1.3',
+        modelApiName: 'muse-spark-1.3',
+        apiKeyName: API_KEY_CONSTANTS.META,
+        hasThinking: true,
+        temperature: 1,
+        reasoningEffort: 'medium',
     },
 };
 
@@ -778,6 +799,15 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         extendedContextOutputPrice: 2.40,
         extendedContextCacheHitPrice: 0.12,
         extendedContextThresholdTokens: 512_000
+    },
+
+    // Meta Muse Spark 1.3, Standard tier. Rates from ai.developer.meta.com/docs/pricing-rate-limits
+    // (2026-09-12): no long-context premium at any point of the 1M window; reasoning tokens bill
+    // as output; caching is automatic, hits reported in input_tokens_details.cached_tokens.
+    [SupportedAiModels[LLM_CONSTANTS.MUSE_SPARK].modelApiName]: {
+        inputPrice: 1.25,
+        outputPrice: 4.25,
+        cacheHitPrice: 0.15
     }
 };
 
@@ -890,6 +920,7 @@ export function getProviderSignatureFields(aiType: string, signature?: string): 
     anthropicThinkingSignature?: string;
     googleThoughtSignature?: string;
     grokEncryptedReasoning?: string;
+    metaEncryptedReasoning?: string;
 } {
     if (!signature) {
         return {};
@@ -908,6 +939,11 @@ export function getProviderSignatureFields(aiType: string, signature?: string): 
     // Check if it's an xAI (Grok) model — JSON-serialized encrypted reasoning items
     if (aiType.startsWith('grok')) {
         return { grokEncryptedReasoning: signature };
+    }
+
+    // Meta Muse Spark — same shape as Grok's encrypted reasoning items
+    if (aiType.startsWith('muse-')) {
+        return { metaEncryptedReasoning: signature };
     }
 
     // Other providers don't support signatures, return empty

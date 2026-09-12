@@ -152,6 +152,14 @@ export function extractGrokTokenUsage(response: any): TokenUsage | null {
 }
 
 /**
+ * Meta-specific token usage extraction
+ * The Meta Model API uses the OpenAI-compatible format
+ */
+export function extractMetaTokenUsage(response: any): TokenUsage | null {
+    return extractTokenUsage(response);
+}
+
+/**
  * Anthropic-specific token usage extraction
  * Anthropic may have different response format
  */

@@ -3,7 +3,7 @@
  *
  * Schema-validated asks (Zod), thinking extraction and CoT-leak defense, a model catalog
  * with per-model tuning defaults and `createCatalog(overrides)`, token usage extraction,
- * and cost accounting (cache tiers, extended context, peak-valley pricing) for 11 providers.
+ * and cost accounting (cache tiers, extended context, peak-valley pricing) for 12 providers.
  * Plus voice agents: text-to-speech and speech-to-text for OpenAI and Gemini behind one factory,
  * and storage-agnostic budget control (per-subject daily/monthly spend caps).
  */
@@ -43,6 +43,7 @@ export {
     extractOpenAITokenUsage,
     extractKimiTokenUsage,
     extractGrokTokenUsage,
+    extractMetaTokenUsage,
     extractAnthropicTokenUsage,
     extractGoogleTokenUsage,
     extractMistralTokenUsage,
@@ -59,6 +60,8 @@ export {
     extractKimiTokenUsageFromResponse,
     calculateGrokCost,
     extractGrokTokenUsageFromResponse,
+    calculateMetaCost,
+    extractMetaTokenUsageFromResponse,
     calculateAnthropicCost,
     extractAnthropicTokenUsageFromResponse,
     calculateGoogleCost,
@@ -71,6 +74,7 @@ export type {
     DeepSeekTokenUsage,
     KimiTokenUsage,
     GrokTokenUsage,
+    MetaTokenUsage,
     AnthropicTokenUsage,
     GoogleTokenUsage,
     MistralTokenUsage,
@@ -93,6 +97,7 @@ export { GoogleAgent } from './agents/google-agent';
 export { MistralAgent } from './agents/mistral-agent';
 export { DeepSeekV2Agent } from './agents/deepseek-v2-agent';
 export { GrokAgent } from './agents/grok-agent';
+export { MetaAgent } from './agents/meta-agent';
 export { KimiAgent } from './agents/kimi-agent';
 export { GlmAgent } from './agents/glm-agent';
 export { FuguAgent } from './agents/fugu-agent';

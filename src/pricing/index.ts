@@ -32,6 +32,12 @@ export {
 export type { GrokTokenUsage } from './grok-pricing';
 
 export {
+    calculateMetaCost,
+    extractTokenUsageFromResponse as extractMetaTokenUsageFromResponse
+} from './meta-pricing';
+export type { MetaTokenUsage } from './meta-pricing';
+
+export {
     calculateAnthropicCost,
     extractTokenUsageFromResponse as extractAnthropicTokenUsageFromResponse
 } from './anthropic-pricing';

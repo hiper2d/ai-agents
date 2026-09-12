@@ -12,6 +12,7 @@ import { GlmAgent } from "./glm-agent";
 import { FuguAgent } from "./fugu-agent";
 import { QwenAgent } from "./qwen-agent";
 import { MiniMaxAgent } from "./minimax-agent";
+import { MetaAgent } from "./meta-agent";
 
 export class AgentFactory {
 
@@ -83,6 +84,10 @@ export class AgentFactory {
             // MiniMax M3 — adaptive thinking (the model decides per-request)
             case LLM_CONSTANTS.MINIMAX:
                 return new MiniMaxAgent(name, instruction, model.modelApiName, key, model.temperature!, shouldEnableThinking);
+
+            // Meta Muse Spark — Responses API with encrypted reasoning replay, effort from the catalog
+            case LLM_CONSTANTS.MUSE_SPARK:
+                return new MetaAgent(name, instruction, model.modelApiName, key, model.temperature!, shouldEnableThinking);
             default:
                 throw new Error(`Unknown Key: ${modelName}`);
         }

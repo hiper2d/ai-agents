@@ -157,6 +157,7 @@ const TEXT_SWEEP_MODELS = new Set<string>([
     LLM_CONSTANTS.FUGU_ULTRA,
     LLM_CONSTANTS.QWEN_FLASH,
     LLM_CONSTANTS.MINIMAX,
+    LLM_CONSTANTS.MUSE_SPARK,           // encrypted reasoning + optional summary (observed)
 ]);
 
 const textMessages: AIMessage[] = [

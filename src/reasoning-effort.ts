@@ -17,6 +17,8 @@ import type { ReasoningEffort } from './catalog';
  * - Z.AI GLM-5.3 / 5.3-Flash: low|high|max only
  * - DeepSeek V4: low|high|max (the API itself aliases medium → high)
  * - Sakana Fugu: high|xhigh
+ * - Meta Muse Spark (verified 2026-09-12): minimal|low|medium|high|xhigh|max ("none" → 400; max is
+ *   Standard tier only)
  * Qwen accepts reasoning_effort but ignores it (thinking_budget is its knob); MiniMax, Kimi,
  * Grok and Mistral expose no effort parameter.
  */
@@ -26,6 +28,7 @@ export type GeminiReasoningEffort = 'minimal' | 'low' | 'medium' | 'high';
 export type GlmReasoningEffort = 'low' | 'high' | 'max';
 export type DeepSeekReasoningEffort = 'low' | 'high' | 'max';
 export type FuguReasoningEffort = 'high' | 'xhigh';
+export type MetaReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 /** The shared scale, lowest first. */
 export const REASONING_EFFORT_SCALE: readonly ReasoningEffort[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
@@ -36,6 +39,7 @@ export const GEMINI_REASONING_EFFORTS: readonly GeminiReasoningEffort[] = ['mini
 export const GLM_REASONING_EFFORTS: readonly GlmReasoningEffort[] = ['low', 'high', 'max'];
 export const DEEPSEEK_REASONING_EFFORTS: readonly DeepSeekReasoningEffort[] = ['low', 'high', 'max'];
 export const FUGU_REASONING_EFFORTS: readonly FuguReasoningEffort[] = ['high', 'xhigh'];
+export const META_REASONING_EFFORTS: readonly MetaReasoningEffort[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 
 /** Clamps `effort` to the nearest level in `allowed` (by rank on the shared scale, ties go up). */
 export function clampReasoningEffort<T extends ReasoningEffort>(effort: ReasoningEffort, allowed: readonly T[]): T {
@@ -58,4 +62,5 @@ export const toAnthropicEffort = (effort: ReasoningEffort): AnthropicReasoningEf
 export const toGeminiEffort = (effort: ReasoningEffort): GeminiReasoningEffort => clampReasoningEffort(effort, GEMINI_REASONING_EFFORTS);
 export const toGlmEffort = (effort: ReasoningEffort): GlmReasoningEffort => clampReasoningEffort(effort, GLM_REASONING_EFFORTS);
 export const toDeepSeekEffort = (effort: ReasoningEffort): DeepSeekReasoningEffort => clampReasoningEffort(effort, DEEPSEEK_REASONING_EFFORTS);
+export const toMetaEffort = (effort: ReasoningEffort): MetaReasoningEffort => clampReasoningEffort(effort, META_REASONING_EFFORTS);
 export const toFuguEffort = (effort: ReasoningEffort): FuguReasoningEffort => clampReasoningEffort(effort, FUGU_REASONING_EFFORTS);
