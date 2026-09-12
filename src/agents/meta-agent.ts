@@ -183,7 +183,18 @@ export class MetaAgent extends AbstractAgent {
                 try {
                     const reasoningItems = JSON.parse(msg.metaEncryptedReasoning);
                     if (Array.isArray(reasoningItems)) {
-                        input.push(...reasoningItems);
+                        // Meta requires `summary` on every replayed reasoning item (`[]` when
+                        // none) and treats `id` as optional; replay only the fields it documents.
+                        for (const item of reasoningItems) {
+                            if (item?.encrypted_content) {
+                                input.push({
+                                    type: 'reasoning',
+                                    ...(item.id ? { id: item.id } : {}),
+                                    summary: Array.isArray(item.summary) ? item.summary : [],
+                                    encrypted_content: item.encrypted_content,
+                                });
+                            }
+                        }
                     }
                 } catch {
                     this.logger(`Failed to parse stored encrypted reasoning, replaying message without it`);
