@@ -332,7 +332,7 @@ export class ClaudeAgent extends AbstractAgent {
             }
 
             if ((response as any).stop_reason === 'refusal') {
-                throw new ModelRefusalError(this.model);
+                throw new ModelRefusalError(this.model, undefined, 'refusal');
             }
             if (!('content' in response) || !Array.isArray(response.content) || response.content.length === 0) {
                 throw new Error(this.errorMessages.emptyResponse);
@@ -470,7 +470,7 @@ export class ClaudeAgent extends AbstractAgent {
             }
 
             if ((response as any).stop_reason === 'refusal') {
-                throw new ModelRefusalError(this.model);
+                throw new ModelRefusalError(this.model, undefined, 'refusal');
             }
             if (!('content' in response) || !Array.isArray(response.content) || response.content.length === 0) {
                 throw new Error(this.errorMessages.emptyResponse);

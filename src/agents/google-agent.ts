@@ -3,7 +3,7 @@ import { AbstractAgent } from "./abstract-agent";
 import { AIMessage, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
 import { GoogleGenAI, Type } from "@google/genai";
 import { parseAndValidateLlmJson } from '../json-response-parser';
-import { ModelOverloadError, ModelRateLimitError, ModelUnavailableError, ModelAuthenticationError, ModelQuotaExceededError } from "../errors";
+import { ModelOverloadError, ModelRateLimitError, ModelUnavailableError, ModelAuthenticationError, ModelQuotaExceededError, ModelRefusalError, ModelInvalidResponseError } from "../errors";
 import { z } from 'zod';
 import { ZodSchemaConverter } from '../zod-schema-converter';
 import { calculateGoogleCost } from '../pricing/google-pricing';
@@ -22,6 +22,58 @@ interface Content {
     parts: Part[];
 }
 
+/**
+ * Candidate `finishReason` values that mean Gemini generated nothing because a content
+ * filter stopped it — as opposed to STOP (fine), MAX_TOKENS (cap hit) or a tool-call
+ * shape we never ask for. Everything in the list is a property of the prompt, so a retry
+ * with the same prompt and model refuses again.
+ */
+const GEMINI_REFUSAL_FINISH_REASONS = new Set([
+    'SAFETY', 'RECITATION', 'BLOCKLIST', 'PROHIBITED_CONTENT', 'SPII',
+    'IMAGE_SAFETY', 'IMAGE_PROHIBITED_CONTENT', 'IMAGE_RECITATION',
+]);
+
+/**
+ * Turn a 200 that carries no text into the right typed error. Gemini reports a refused
+ * PROMPT as `promptFeedback.blockReason` with no candidates at all, and a refused
+ * ANSWER as a candidate whose `finishReason` names the filter; both used to surface as
+ * the bare "Empty response" and cost a production replay to diagnose (2026-09-13).
+ * Exported for tests; never returns — it always throws.
+ */
+export function throwForEmptyGeminiResponse(model: string, response: any, fallback: string): never {
+    const blockReason: string | undefined = response?.promptFeedback?.blockReason;
+    const candidate = response?.candidates?.[0];
+    const finishReason: string | undefined = candidate?.finishReason;
+    const finishMessage: string | undefined = candidate?.finishMessage;
+    const ratings: any[] = (candidate?.safetyRatings ?? response?.promptFeedback?.safetyRatings ?? [])
+        .filter((r: any) => r?.blocked || (r?.probability && r.probability !== 'NEGLIGIBLE'));
+    const ratingText = ratings.length
+        ? `; safetyRatings: ${ratings.map((r: any) => `${r.category}=${r.probability ?? (r.blocked ? 'blocked' : '?')}`).join(', ')}`
+        : '';
+
+    if (blockReason) {
+        throw new ModelRefusalError(
+            model,
+            `${model} refused the prompt (blockReason: ${blockReason}${finishMessage ? `, ${finishMessage}` : ''}${ratingText})`,
+            blockReason
+        );
+    }
+    if (finishReason && GEMINI_REFUSAL_FINISH_REASONS.has(finishReason)) {
+        throw new ModelRefusalError(
+            model,
+            `${model} refused to answer (finishReason: ${finishReason}${finishMessage ? `, ${finishMessage}` : ''}${ratingText})`,
+            finishReason
+        );
+    }
+    if (finishReason === 'MAX_TOKENS') {
+        throw new ModelInvalidResponseError(model, 'empty response, finishReason MAX_TOKENS (thinking consumed the whole output budget)', true);
+    }
+    const bits = [`finishReason=${finishReason ?? 'none'}`];
+    if (!response?.candidates?.length) bits.push('no candidates');
+    if (finishMessage) bits.push(`finishMessage="${finishMessage}"`);
+    throw new Error(`${fallback} (${bits.join(', ')})`);
+}
+
 export class GoogleAgent extends AbstractAgent {
     private readonly client: GoogleGenAI;
     private readonly defaultConfig = {
@@ -35,7 +87,7 @@ export class GoogleAgent extends AbstractAgent {
 
     // Error message templates
     private readonly errorMessages = {
-        emptyResponse: 'Empty response from Google API - check logs for detailed response info',
+        emptyResponse: 'Empty response from Google API',
         invalidFormat: 'Invalid response format from Google API',
         apiError: (error: unknown) =>
             `Failed to get response from Google API: ${error instanceof Error ? error.message : String(error)}`,
@@ -281,7 +333,7 @@ export class GoogleAgent extends AbstractAgent {
             this.logger(`Zod schema response received - hasText: ${!!response.text}, textLength: ${response.text ? response.text.length : 0}`);
 
             if (!response.text) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throwForEmptyGeminiResponse(this.model, response, this.errorMessages.emptyResponse);
             }
 
             // Parse and validate the response using the shared lenient parser
@@ -405,7 +457,7 @@ export class GoogleAgent extends AbstractAgent {
             this.logger(`Plain text response received - hasText: ${!!response.text}, textLength: ${response.text ? response.text.length : 0}`);
 
             if (!response.text) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throwForEmptyGeminiResponse(this.model, response, this.errorMessages.emptyResponse);
             }
 
             this.logReply(response.text, thinkingContent || undefined, tokenUsage);

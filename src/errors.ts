@@ -97,16 +97,32 @@ export class ModelInvalidResponseError extends ModelError {
 }
 
 /**
- * The model declined to answer: Anthropic returns `stop_reason: "refusal"` with no content
- * blocks when its safety layer rejects the request as a whole. Not retryable as-is — the
- * same prompt will refuse again — the caller has to change the prompt or the model.
- * Observed 2026-08-30 on Claude Fable 5: a persona system prompt plus a narrated multi-turn
- * history that ends by asking the character what it does refuses, while either half alone
- * answers; Sonnet 5 and Opus 4.8 answer the same requests.
+ * The model declined to answer. Not retryable as-is — the same prompt will refuse again —
+ * the caller has to change the prompt or the model. `reason` is the provider's own label
+ * for the refusal, when it gives one:
+ *
+ *   Anthropic  `stop_reason: "refusal"` with no content blocks when its safety layer rejects
+ *              the request as a whole. Observed 2026-08-30 on Claude Fable 5: a persona
+ *              system prompt plus a narrated multi-turn history that ends by asking the
+ *              character what it does refuses, while either half alone answers; Sonnet 5
+ *              and Opus 4.8 answer the same requests. `reason` = "refusal".
+ *   Google     a 200 with no candidates and `promptFeedback.blockReason` set (the prompt
+ *              itself was rejected: PROHIBITED_CONTENT, SAFETY, BLOCKLIST, JAILBREAK,
+ *              MODEL_ARMOR, OTHER), or a candidate whose `finishReason` is a content
+ *              block (SAFETY, PROHIBITED_CONTENT, BLOCKLIST, RECITATION, SPII,
+ *              IMAGE_SAFETY, ...). Observed 2026-09-13 in production: an explicit
+ *              sexual roleplay game was refused by Gemini 3.8 Flash and 3.1 Pro with
+ *              blockReason PROHIBITED_CONTENT in ~200ms and zero output tokens, while
+ *              Mistral, MiniMax and Muse answered the same prompt. PROHIBITED_CONTENT is
+ *              Google's non-configurable filter — no safetySettings change lifts it.
+ *              `reason` = the blockReason or finishReason string.
  */
 export class ModelRefusalError extends ModelError {
-    constructor(modelType: string, message: string = `${modelType} refused to answer (stop_reason: refusal)`) {
+    public reason?: string;
+
+    constructor(modelType: string, message: string = `${modelType} refused to answer (stop_reason: refusal)`, reason?: string) {
         super(message, modelType);
         this.name = 'ModelRefusalError';
+        this.reason = reason;
     }
 }
