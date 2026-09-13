@@ -1,4 +1,5 @@
 import { AbstractAgent } from "./abstract-agent";
+import { ModelError, ModelRefusalError } from "../errors";
 import { stripInlineThinking } from "../thinking-utils";
 import { OpenAI } from "openai";
 import { AIMessage, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
@@ -16,6 +17,27 @@ import { parseAndValidateLlmJson } from '../json-response-parser';
 // Structured output: Qwen's `response_format: json_object` is NOT supported in thinking mode,
 // and we always think — so schema constraints are conveyed in-prompt and parsed leniently,
 // never via response_format.
+
+/**
+ * Qwen's content filter answers HTTP 400 `InternalError.Algo.DataInspectionFailed: Input
+ * text data may contain inappropriate content.` — the same class of verdict as Gemini's
+ * PROHIBITED_CONTENT (a property of the prompt; the same prompt refuses again), so it
+ * gets the same typed error. Observed in production 2026-09-13 on qwen-flash, in the game
+ * that Gemini refused the same day.
+ */
+export function qwenRefusalFrom(model: string, apiError: unknown): ModelRefusalError | undefined {
+    const message = apiError instanceof Error ? apiError.message : String(apiError);
+    if (!/DataInspectionFailed|inappropriate content/i.test(message)) {
+        return undefined;
+    }
+    const detail = message.replace(/^[\s\S]*DataInspectionFailed:\s*/, '').trim();
+    return new ModelRefusalError(
+        model,
+        `${model} refused the prompt (refusalReason: DataInspectionFailed${detail ? `; ${detail}` : ''})`,
+        'DataInspectionFailed'
+    );
+}
+
 export class QwenAgent extends AbstractAgent {
     private readonly client: OpenAI;
     // A getter, not a field: `maxOutputTokens` can be raised after construction, and a field
@@ -166,7 +188,7 @@ export class QwenAgent extends AbstractAgent {
                 completion = await this.client.chat.completions.create(params) as OpenAI.Chat.Completions.ChatCompletion;
             } catch (apiError) {
                 this.logger(this.logTemplates.error(this.name, apiError));
-                throw new Error(this.errorMessages.apiError(apiError));
+                throw qwenRefusalFrom(this.model, apiError) ?? new Error(this.errorMessages.apiError(apiError));
             }
 
             const rawReply = completion.choices[0]?.message?.content;
@@ -194,6 +216,9 @@ export class QwenAgent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) {
+                throw error;
+            }
             throw new Error(this.errorMessages.apiError(error));
         }
     }
@@ -230,7 +255,7 @@ export class QwenAgent extends AbstractAgent {
                 completion = await this.client.chat.completions.create(params) as OpenAI.Chat.Completions.ChatCompletion;
             } catch (apiError) {
                 this.logger(this.logTemplates.error(this.name, apiError));
-                throw new Error(this.errorMessages.apiError(apiError));
+                throw qwenRefusalFrom(this.model, apiError) ?? new Error(this.errorMessages.apiError(apiError));
             }
 
             const rawReply = completion.choices[0]?.message?.content;
@@ -252,6 +277,9 @@ export class QwenAgent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) {
+                throw error;
+            }
             throw new Error(this.errorMessages.apiError(error));
         }
     }
