@@ -1,17 +1,18 @@
 /**
  * Live suite for the Mistral agent (Mistral SDK chat.complete). Real calls; skips itself
  * when MISTRAL_API_KEY is missing. What it pins:
- * - schema asks return typed replies with token usage on a plain model (Medium) and on the
- *   reasoning model (Magistral) — in JSON mode Magistral surfaces NO thinking, by design
- *   (the schema goes into the message content, not responseFormat)
- * - Magistral's plain-text path returns its structured content array as text, with the
- *   reasoning trace observed (not asserted — traces vary)
+ * - schema asks return typed replies with token usage AND a reasoning trace on both hybrid
+ *   models (Small 4, Medium 3.5) — `reasoning_effort` rides in the wire body and the trace
+ *   arrives as a `thinking` content chunk even with json_schema structured output
+ * - with thinking disabled the field is omitted and the reply is a plain string, no trace
+ * - a stored trace on a prior assistant turn is replayed as [thinking, text] chunks and the
+ *   API accepts the shape
  * - a large 8-character structured response parses cleanly on both models
  * - provider errors, empty choices, and missing content surface as the agent's own errors
- * - catalog pricing for Medium and Magistral
+ * - catalog pricing for Medium and Small
  */
 import { MistralAgent } from './mistral-agent';
-import { API_KEY_CONSTANTS, LLM_CONSTANTS, SupportedAiModels, calculateModelCost } from '../catalog';
+import { API_KEY_CONSTANTS, LLM_CONSTANTS, SupportedAiModels, calculateModelCost, isHybridThinkingModel } from '../catalog';
 import { validateResponse } from '../zod-validate';
 import type { AIMessage } from '../types';
 import { assistantPrompt, sampleHistory, ReplySchema, SceneSchema, SILENT_LOGGING } from '../testing/fixtures';
@@ -36,48 +37,64 @@ const SCENE_REQUEST: AIMessage[] = [{
 
 describe('MistralAgent live', () => {
     describeLive('askWithZodSchema against the real API', () => {
-        const expectTypedReply = async (modelType: string) => {
+        const expectTypedReplyWithTrace = async (modelType: string) => {
             const agent = createAgent('Mira', modelType);
             const [response, thinking, tokenUsage] = await agent.askWithZodSchema(ReplySchema, sampleHistory());
 
             expect(typeof response).toBe('object');
             expect(typeof response.reply).toBe('string');
             expect(response.reply.length).toBeGreaterThan(0);
-            // JSON mode never carries a reasoning trace, on either model.
-            expect(thinking).toBe('');
+            // reasoning_effort: high — the thinking chunk arrives alongside json_schema output.
+            expect(thinking.length).toBeGreaterThan(0);
 
             expect(tokenUsage).toBeDefined();
             expect(tokenUsage!.inputTokens).toBeGreaterThan(0);
             expect(tokenUsage!.outputTokens).toBeGreaterThan(0);
-            expect(tokenUsage!.totalTokens).toBeGreaterThan(0);
+            expect(tokenUsage!.totalTokens).toBe(tokenUsage!.inputTokens + tokenUsage!.outputTokens);
             expect(tokenUsage!.costUSD).toBeGreaterThan(0);
+            console.log(`ℹ️ ${modelType} schema ask: ${thinking.length} chars of thinking, ${tokenUsage!.outputTokens} output tokens, ${tokenUsage!.durationMs}ms`);
         };
 
-        it('Mistral Medium returns a typed reply with token usage', async () => {
-            await expectTypedReply(LLM_CONSTANTS.MISTRAL_MEDIUM);
-        }, 30000);
-
-        it('Magistral returns a typed reply in JSON mode with empty thinking (by design)', async () => {
-            await expectTypedReply(LLM_CONSTANTS.MISTRAL_MAGISTRAL);
+        it('Mistral Small returns a typed reply with a reasoning trace', async () => {
+            await expectTypedReplyWithTrace(LLM_CONSTANTS.MISTRAL_SMALL);
         }, 60000);
 
-        it('Magistral still answers a step-by-step prompt in JSON mode', async () => {
-            const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_MAGISTRAL);
-            const messages: AIMessage[] = [{
-                role: 'user',
-                content: 'Think step by step: the party had 3 torches and 1 burned out. How many remain? Reply as JSON.',
-            }];
-            const [response, thinking, tokenUsage] = await agent.askWithZodSchema(ReplySchema, messages);
+        it('Mistral Medium returns a typed reply with a reasoning trace', async () => {
+            await expectTypedReplyWithTrace(LLM_CONSTANTS.MISTRAL_MEDIUM);
+        }, 60000);
+
+        it('with thinking disabled the reply is a plain string and no trace is returned', async () => {
+            const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_SMALL, false);
+            const [response, thinking, tokenUsage] = await agent.askWithZodSchema(ReplySchema, sampleHistory());
 
             expect(response.reply.length).toBeGreaterThan(0);
             expect(thinking).toBe('');
             expect(tokenUsage!.costUSD).toBeGreaterThan(0);
-        }, 60000);
+        }, 30000);
+
+        it('replays a stored trace on a prior assistant turn as thinking chunks', async () => {
+            const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_SMALL);
+            const history = sampleHistory();
+            // First turn: capture a real trace.
+            const [, firstThinking] = await agent.askWithZodSchema(ReplySchema, history.slice(0, 1));
+            expect(firstThinking.length).toBeGreaterThan(0);
+
+            // Second turn: the prior answer carries that trace; the API must accept the shape.
+            const withTrace: AIMessage[] = [
+                history[0],
+                { ...history[1], thinking: firstThinking },
+                history[2],
+            ];
+            const [response, thinking, tokenUsage] = await agent.askWithZodSchema(ReplySchema, withTrace);
+            expect(response.reply.length).toBeGreaterThan(0);
+            expect(thinking.length).toBeGreaterThan(0);
+            expect(tokenUsage!.costUSD).toBeGreaterThan(0);
+        }, 90000);
 
         it('Mistral Medium generates an 8-character scene at a 16k output ceiling without truncating', async () => {
-            const agent = createAgent('Narrator', LLM_CONSTANTS.MISTRAL_MEDIUM, false);
+            const agent = createAgent('Narrator', LLM_CONSTANTS.MISTRAL_MEDIUM);
             agent.maxOutputTokens = 16384;
-            const [scene, , tokenUsage] = await agent.askWithZodSchema(SceneSchema, SCENE_REQUEST);
+            const [scene, thinking, tokenUsage] = await agent.askWithZodSchema(SceneSchema, SCENE_REQUEST);
 
             expect(scene.title.length).toBeGreaterThan(0);
             expect(scene.characters).toHaveLength(8);
@@ -85,34 +102,34 @@ describe('MistralAgent live', () => {
                 expect(character.name.length).toBeGreaterThan(0);
                 expect(character.line.length).toBeGreaterThan(0);
             }
+            expect(thinking.length).toBeGreaterThan(0);
             expect(tokenUsage!.totalTokens).toBe(tokenUsage!.inputTokens + tokenUsage!.outputTokens);
             expect(tokenUsage!.costUSD).toBeGreaterThan(0);
-        }, 90000);
+        }, 120000);
 
-        it('Magistral generates an 8-character scene in JSON mode (no thinking surfaced)', async () => {
-            const agent = createAgent('Narrator', LLM_CONSTANTS.MISTRAL_MAGISTRAL, false);
+        it('Mistral Small generates an 8-character scene with reasoning on', async () => {
+            const agent = createAgent('Narrator', LLM_CONSTANTS.MISTRAL_SMALL);
             agent.maxOutputTokens = 16384;
             const [scene, thinking, tokenUsage] = await agent.askWithZodSchema(SceneSchema, SCENE_REQUEST);
 
             expect(scene.characters).toHaveLength(8);
-            expect(thinking).toBe('');
-            expect(tokenUsage!.totalTokens).toBe(tokenUsage!.inputTokens + tokenUsage!.outputTokens);
+            expect(thinking.length).toBeGreaterThan(0);
             expect(tokenUsage!.costUSD).toBeGreaterThan(0);
         }, 120000);
     });
 
     describeLive('askText against the real API', () => {
-        it('Magistral returns plain text from its structured content array, reasoning observed', async () => {
-            const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_MAGISTRAL);
+        it('Mistral Small returns plain text from its [thinking, text] content array', async () => {
+            const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_SMALL);
             const [reply, thinking, tokenUsage] = await agent.askText([
                 { role: 'user', content: 'Introduce yourself to the party in two sentences.' },
             ]);
 
             expect(typeof reply).toBe('string');
             expect(reply.trim().length).toBeGreaterThan(0);
+            expect(reply).not.toMatch(/"type"\s*:\s*"thinking"/);
+            expect(thinking.length).toBeGreaterThan(0);
             expect(tokenUsage!.outputTokens).toBeGreaterThan(0);
-            // Magistral's trace is not guaranteed on short prompts — log, don't assert.
-            console.log(`ℹ️ Magistral askText thinking: ${thinking.length > 0 ? `${thinking.length} chars` : 'not surfaced'}`);
         }, 60000);
     });
 
@@ -141,15 +158,24 @@ describe('MistralAgent live', () => {
         });
     });
 
-    describe('token cost', () => {
+    describe('catalog', () => {
         it('Mistral Medium: $1.5 in / $7.5 out per 1M', () => {
             const apiName = SupportedAiModels[LLM_CONSTANTS.MISTRAL_MEDIUM].modelApiName;
             expect(calculateModelCost(apiName, 1_000_000, 1_000_000)).toBeCloseTo(9.0, 2);
         });
 
-        it('Magistral Medium: $2 in / $5 out per 1M', () => {
-            const apiName = SupportedAiModels[LLM_CONSTANTS.MISTRAL_MAGISTRAL].modelApiName;
-            expect(calculateModelCost(apiName, 1_000_000, 1_000_000)).toBeCloseTo(7.0, 2);
+        it('Mistral Small: $0.15 in / $0.6 out per 1M', () => {
+            const apiName = SupportedAiModels[LLM_CONSTANTS.MISTRAL_SMALL].modelApiName;
+            expect(calculateModelCost(apiName, 1_000_000, 1_000_000)).toBeCloseTo(0.75, 2);
+        });
+
+        it('both entries are hybrid thinking models pinned to high effort', () => {
+            for (const id of [LLM_CONSTANTS.MISTRAL_MEDIUM, LLM_CONSTANTS.MISTRAL_SMALL]) {
+                const config = SupportedAiModels[id];
+                expect(config.hasThinking).toBe(true);
+                expect(config.reasoningEffort).toBe('high');
+                expect(isHybridThinkingModel(config.modelApiName)).toBe(true);
+            }
         });
     });
 

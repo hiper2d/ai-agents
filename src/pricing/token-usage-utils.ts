@@ -204,8 +204,10 @@ export function extractGoogleTokenUsage(response: any): TokenUsage | null {
 
 /**
  * Mistral-specific token usage extraction
- * Mistral SDK uses camelCase (promptTokens, completionTokens, totalTokens)
- * and reasoning tokens may be in additionalProperties for Magistral models
+ * Mistral SDK uses camelCase (promptTokens, completionTokens, totalTokens). Reasoning tokens
+ * are not itemised today (they sit inside completionTokens, observed 2026-09-18 on Small 4 and
+ * Medium 3.5 with reasoning_effort: high); the additionalProperties probe below stays in case
+ * a reasoning_tokens field ever appears.
  */
 export function extractMistralTokenUsage(response: any): TokenUsage | null {
     const usage = response?.usage;
@@ -220,8 +222,8 @@ export function extractMistralTokenUsage(response: any): TokenUsage | null {
         totalTokens: usage.totalTokens || 0
     };
 
-    // Extract reasoning tokens from additionalProperties if available (Magistral models)
-    // Magistral models may include reasoning token info in the additionalProperties field
+    // Unknown wire fields land in additionalProperties; probe it for reasoning tokens (not
+    // sent today) and cache hits (prompt_tokens_details.cached_tokens, observed live).
     if (usage.additionalProperties) {
         const additionalProps = usage.additionalProperties;
 

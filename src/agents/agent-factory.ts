@@ -60,8 +60,6 @@ export class AgentFactory {
             // Mistral models
             case LLM_CONSTANTS.MISTRAL_MEDIUM:
             case LLM_CONSTANTS.MISTRAL_SMALL:
-            case LLM_CONSTANTS.MISTRAL_LARGE:
-            case LLM_CONSTANTS.MISTRAL_MAGISTRAL:
                 return new MistralAgent(name, instruction, model.modelApiName, key, shouldEnableThinking);
             case LLM_CONSTANTS.KIMI:
                 // Kimi K3 rejects any temperature but 1; the agent never sends the field.

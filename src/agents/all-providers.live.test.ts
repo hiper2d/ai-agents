@@ -126,11 +126,13 @@ describe('All providers — constrained choice via askWithZodSchema', () => {
 
 // Models whose askText surfaces thinking reliably. NOT guaranteed: adaptive-thinking Claude
 // models decide per request and skip thinking on trivial prompts; Grok returns encrypted
-// reasoning; Gemini thought summaries and Magistral traces vary. Those are logged.
+// reasoning; Gemini thought summaries vary. Those are logged.
 const THINKING_GUARANTEED = new Set<string>([
     LLM_CONSTANTS.CLAUDE_HAIKU,          // budget thinking is always emitted
     LLM_CONSTANTS.DEEPSEEK_FLASH,
     LLM_CONSTANTS.DEEPSEEK_PRO,
+    LLM_CONSTANTS.MISTRAL_SMALL,         // reasoning_effort: high always returns the thinking chunk
+    LLM_CONSTANTS.MISTRAL_MEDIUM,
 ]);
 
 // GPT-5's plain-text path cannot surface thinking (OpenAI never exposes chain-of-thought),
@@ -149,8 +151,8 @@ const TEXT_SWEEP_MODELS = new Set<string>([
     LLM_CONSTANTS.GPT_MINI,            // single path: thinking never surfaces
     LLM_CONSTANTS.GEMINI_FLASH,
     LLM_CONSTANTS.GEMINI_LITE,
-    LLM_CONSTANTS.MISTRAL_SMALL,
-    LLM_CONSTANTS.MISTRAL_MAGISTRAL,       // structured content array (thinking)
+    LLM_CONSTANTS.MISTRAL_SMALL,           // [thinking, text] content array
+    LLM_CONSTANTS.MISTRAL_MEDIUM,
     LLM_CONSTANTS.GROK,
     LLM_CONSTANTS.KIMI,
     LLM_CONSTANTS.GLM,

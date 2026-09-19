@@ -2,14 +2,36 @@ import { AbstractAgent } from "./abstract-agent";
 import { stableHashHex } from "../text-utils";
 import { Mistral } from "@mistralai/mistralai";
 import { HTTPClient } from "@mistralai/mistralai/lib/http.js";
-import { ChatCompletionResponse } from "@mistralai/mistralai/models/components";
+import { ChatCompletionResponse, ContentChunk } from "@mistralai/mistralai/models/components";
 import { AIMessage, MESSAGE_ROLE, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
 import { cleanResponse } from "../text-utils";
 import { z } from 'zod';
 import { ZodSchemaConverter } from '../zod-schema-converter';
 import { parseAndValidateLlmJson } from '../json-response-parser';
 import { extractMistralTokenUsage, calculateCost } from '../pricing/token-usage-utils';
+import { toMistralEffort } from '../reasoning-effort';
 
+type MistralMessage = Parameters<Mistral['chat']['complete']>[0]['messages'][number];
+
+/**
+ * Mistral agent (Mistral SDK chat.complete) for the hybrid Small 4 / Medium 3.5 models.
+ *
+ * Reasoning is off on the API by default and switched on per request with `reasoning_effort`
+ * (docs.mistral.ai/studio/conversations/reasoning). SDK 1.x has no typed field for it, so it is
+ * injected into the wire body by the same beforeRequest hook that adds `prompt_cache_key`.
+ * With it set, the assistant message comes back as content chunks — a `thinking` chunk (a list
+ * of text chunks holding the trace) followed by the `text` answer — and this works together
+ * with json_schema structured output (verified live 2026-09-18 on both models). Without the
+ * field the reply is a plain string and no trace exists.
+ *
+ * Multi-turn: Mistral asks that the full assistant message, thinking chunk included, be
+ * replayed into history ("stripping reasoning traces degrades performance"). The trace is
+ * plain text, so it rides on `AIMessage.thinking` — no provider signature field — and
+ * convertToMistralMessages rebuilds each prior assistant turn as [thinking, text] chunks.
+ *
+ * Reasoning tokens are counted inside completion_tokens; no separate reasoning_tokens field
+ * arrives, so cost accounting on the output rate already covers the trace.
+ */
 export class MistralAgent extends AbstractAgent {
     private readonly client: Mistral;
     // A getter, not a field: `maxOutputTokens` can be raised after construction, and a field
@@ -46,12 +68,15 @@ export class MistralAgent extends AbstractAgent {
     ) {
         super(name, instruction, model, 0.7, enableThinking, agentLoggingConfig);
 
-        // Mistral's cache hint is the `prompt_cache_key` request param ("use the same key
-        // for requests with shared prompt prefixes ... to increase cache hits"), but SDK
-        // 1.10.0 has no typed field for it and its outbound zod schema strips unknown keys.
-        // Inject it via the SDK's beforeRequest hook instead. The key is derived from bot
-        // identity + system prompt, so it is stable within a game day. Any failure falls
-        // back to sending the request untouched.
+        // Two request params SDK 1.x has no typed field for (its outbound zod schema strips
+        // unknown keys), injected into the wire body via the beforeRequest hook instead:
+        // - `prompt_cache_key`: Mistral's cache hint ("use the same key for requests with
+        //   shared prompt prefixes ... to increase cache hits"), derived from bot identity +
+        //   system prompt so it is stable within a game day.
+        // - `reasoning_effort`: turns reasoning on. Read at request time (not captured here) so
+        //   a per-instance `reasoningEffort` override set after construction is honoured.
+        //   Omitted when thinking is disabled — the API's default is no reasoning.
+        // Any failure falls back to sending the request untouched.
         const promptCacheKey = stableHashHex(`${name}\n${instruction}`);
         const httpClient = new HTTPClient();
         httpClient.addHook("beforeRequest", async (request) => {
@@ -60,6 +85,9 @@ export class MistralAgent extends AbstractAgent {
                     const body = await request.clone().text();
                     const json = JSON.parse(body);
                     json.prompt_cache_key = promptCacheKey;
+                    if (this.enableThinking && this.reasoningEffort) {
+                        json.reasoning_effort = toMistralEffort(this.reasoningEffort);
+                    }
                     return new Request(request.url, {
                         method: request.method,
                         headers: request.headers,
@@ -72,20 +100,27 @@ export class MistralAgent extends AbstractAgent {
             return request;
         });
         this.client = new Mistral({ apiKey: apiKey, httpClient });
-
-        // Note: Magistral reasoning models can generate thinking content, but only when
-        // responseFormat is not set to 'json_object'. Since this game requires JSON responses,
-        // thinking content will be suppressed. The models still benefit from internal reasoning
-        // during generation, but thinking traces are not returned in the response.
     }
 
-
-
-    private convertToMistralMessages(messages: AIMessage[]) {
-        return this.prepareMessages(messages).map(msg => ({
-            role: msg.role === 'developer' ? 'system' : msg.role,
-            content: msg.content
-        }));
+    /**
+     * History in Mistral's shape. A prior assistant turn that carries a stored trace is
+     * replayed as [thinking, text] chunks, as Mistral's multi-turn guidance asks; every other
+     * turn is a plain string.
+     */
+    private convertToMistralMessages(messages: AIMessage[]): MistralMessage[] {
+        return this.prepareMessages(messages).map((msg): MistralMessage => {
+            if (msg.role === 'assistant' && msg.thinking) {
+                const chunks: ContentChunk[] = [
+                    { type: 'thinking', thinking: [{ type: 'text', text: msg.thinking }] },
+                    { type: 'text', text: msg.content },
+                ];
+                return { role: 'assistant', content: chunks };
+            }
+            return {
+                role: msg.role === 'developer' ? 'system' : msg.role,
+                content: msg.content,
+            };
+        });
     }
 
 
@@ -98,11 +133,10 @@ export class MistralAgent extends AbstractAgent {
 
         let reply = message.content;
 
-        // Handle structured content (thinking models)
+        // Reasoning on: [thinking, text] chunk array
         if (Array.isArray(reply)) {
             const { content, thinking } = this.processStructuredReply(reply);
 
-            // Log thinking information if available
             if (this.enableThinking && thinking) {
                 this.logger(`Thinking content: ${thinking.length} characters of reasoning`);
             }
@@ -110,7 +144,7 @@ export class MistralAgent extends AbstractAgent {
             return [cleanResponse(content), thinking, this.extractTokenUsage(response)];
         }
 
-        // Handle string content (regular models)
+        // Reasoning off: plain string
         return [cleanResponse(reply), "", this.extractTokenUsage(response)];
     }
 
@@ -118,7 +152,7 @@ export class MistralAgent extends AbstractAgent {
         let content = "";
         let thinking = "";
 
-        // Response should have 2 parts: thinking block and text block
+        // Two chunks: the thinking block (a list of text chunks) and the text block
         for (const chunk of reply) {
             if (typeof chunk === "object" && chunk !== null && "type" in chunk) {
                 if (chunk.type === "thinking" && "thinking" in chunk) {
@@ -143,12 +177,8 @@ export class MistralAgent extends AbstractAgent {
         const usage = extractMistralTokenUsage(response);
         if (!usage) return undefined;
 
-        // MISTRAL_CACHE_CALIBRATION: Mistral documents cached billing but no usage field for
-        // hits; the SDK parks unknown wire fields in usage.additionalProperties. Log the raw
-        // usage until one real game answers whether hits are reported at all, then remove.
-        this.logger(`MISTRAL_CACHE_CALIBRATION raw usage: ${JSON.stringify(response?.usage)}`);
-
-        // Log reasoning tokens if available (Magistral models)
+        // Reasoning tokens are not itemised by Mistral today (they sit inside completion_tokens);
+        // logged if that ever changes.
         if (usage.reasoningTokens && usage.reasoningTokens > 0) {
             this.logger(`🧠 Reasoning tokens used: ${usage.reasoningTokens}`);
         }
@@ -191,10 +221,11 @@ export class MistralAgent extends AbstractAgent {
             // Convert messages to Mistral format and add schema to last message
             const convertedMessages = this.convertToMistralMessages(messages);
 
-            // Add schema description to the last message content
+            // Add schema description to the last message content (always a plain-string user
+            // turn in practice; a chunked assistant turn is left alone).
             if (convertedMessages.length > 0) {
                 const lastMessage = convertedMessages[convertedMessages.length - 1];
-                if (lastMessage && lastMessage.content) {
+                if (lastMessage && typeof lastMessage.content === 'string' && lastMessage.content) {
                     lastMessage.content += `\n\nYour response must be a valid JSON object matching this schema:\n${schemaDescription}`;
                 }
             } else {
@@ -206,12 +237,12 @@ export class MistralAgent extends AbstractAgent {
             }
 
             // Prepare system message
-            const systemMessage = {
+            const systemMessage: MistralMessage = {
                 role: MESSAGE_ROLE.SYSTEM,
                 content: this.instruction
             };
 
-            const allMessages = [systemMessage, ...convertedMessages];
+            const allMessages: MistralMessage[] = [systemMessage, ...convertedMessages];
 
             // Build request parameters using Mistral Custom Structured Outputs.
             // json_schema enforces the response shape server-side; parseAndValidateLlmJson
@@ -252,12 +283,12 @@ export class MistralAgent extends AbstractAgent {
                 throw new Error(this.errorMessages.invalidFormat);
             }
 
-            // Extract text content from structured responses (thinking models return arrays)
+            // With reasoning on the content is a [thinking, text] chunk array; a plain string
+            // otherwise.
             let responseText: string;
             let thinkingContent = "";
 
             if (Array.isArray(content)) {
-                // Handle structured content (thinking models)
                 const { content: extractedContent, thinking } = this.processStructuredReply(content);
                 responseText = extractedContent;
                 thinkingContent = thinking;
@@ -290,22 +321,21 @@ export class MistralAgent extends AbstractAgent {
     }
 
     /**
-     * Plain-text ask: no schema appended, no responseFormat. Note that Magistral
-     * reasoning models only return thinking traces when responseFormat is NOT
-     * json_object, so unlike askWithZodSchema this path can surface thinking content.
+     * Plain-text ask: no schema appended, no responseFormat. Reasoning (and the trace) works
+     * the same way as on the schema path.
      */
     async doAskText(messages: AIMessage[]): Promise<[string, string, TokenUsage?, string?]> {
         try {
             const convertedMessages = this.convertToMistralMessages(messages);
 
-            const systemMessage = {
+            const systemMessage: MistralMessage = {
                 role: MESSAGE_ROLE.SYSTEM,
                 content: this.instruction
             };
 
             const requestParams = {
                 ...this.defaultParams,
-                messages: [systemMessage, ...convertedMessages],
+                messages: [systemMessage, ...convertedMessages] as MistralMessage[],
             };
 
             this.logAsking(messages);
