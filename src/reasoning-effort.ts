@@ -16,7 +16,8 @@ import type { ReasoningEffort } from './catalog';
  * - Gemini 3.x thinkingLevel: minimal|low|medium|high (3.1 Pro and 3.7 Flash reject minimal)
  * - Z.AI GLM-5.3 / 5.3-Flash: low|high|max only
  * - DeepSeek V4: low|high|max (the API itself aliases medium → high)
- * - Sakana Fugu: high|xhigh
+ * - Sakana Fugu (verified live 2026-09-20): high|xhigh|max on every model ("low" → 400 naming
+ *   exactly that enum). The server default is xhigh for fugu-ultra and high for the rest.
  * - Meta Muse Spark (verified 2026-09-12): minimal|low|medium|high|xhigh|max ("none" → 400; max is
  *   Standard tier only)
  * - Mistral Small 4 / Medium 3.5 (verified 2026-09-18): the API enum is
@@ -32,7 +33,7 @@ export type AnthropicReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'ma
 export type GeminiReasoningEffort = 'minimal' | 'low' | 'medium' | 'high';
 export type GlmReasoningEffort = 'low' | 'high' | 'max';
 export type DeepSeekReasoningEffort = 'low' | 'high' | 'max';
-export type FuguReasoningEffort = 'high' | 'xhigh';
+export type FuguReasoningEffort = 'high' | 'xhigh' | 'max';
 export type MetaReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type MistralReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 
@@ -44,7 +45,7 @@ export const ANTHROPIC_REASONING_EFFORTS: readonly AnthropicReasoningEffort[] = 
 export const GEMINI_REASONING_EFFORTS: readonly GeminiReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
 export const GLM_REASONING_EFFORTS: readonly GlmReasoningEffort[] = ['low', 'high', 'max'];
 export const DEEPSEEK_REASONING_EFFORTS: readonly DeepSeekReasoningEffort[] = ['low', 'high', 'max'];
-export const FUGU_REASONING_EFFORTS: readonly FuguReasoningEffort[] = ['high', 'xhigh'];
+export const FUGU_REASONING_EFFORTS: readonly FuguReasoningEffort[] = ['high', 'xhigh', 'max'];
 export const META_REASONING_EFFORTS: readonly MetaReasoningEffort[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 export const MISTRAL_REASONING_EFFORTS: readonly MistralReasoningEffort[] = ['minimal', 'low', 'medium', 'high', 'xhigh'];
 

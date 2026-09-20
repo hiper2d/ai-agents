@@ -36,7 +36,8 @@ describe('reasoning effort clamping', () => {
     it('floors Anthropic at low and Fugu at high', () => {
         expect(toAnthropicEffort('minimal')).toBe('low');
         expect(toFuguEffort('low')).toBe('high');
-        expect(toFuguEffort('max')).toBe('xhigh');
+        expect(toFuguEffort('max')).toBe('max');
+        expect(toFuguEffort('medium')).toBe('high');
     });
 
     it('resolves ties upward, never below what was asked for', () => {

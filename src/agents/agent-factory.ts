@@ -72,6 +72,7 @@ export class AgentFactory {
 
             // Sakana Fugu models — always-on reasoning, no temperature (ignored by the model)
             case LLM_CONSTANTS.FUGU_ULTRA:
+            case LLM_CONSTANTS.FUGU_MAX:
                 return new FuguAgent(name, instruction, model.modelApiName, key, shouldEnableThinking);
 
             // Qwen models — thinking-only (enable_thinking always sent)

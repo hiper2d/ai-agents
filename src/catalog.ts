@@ -74,6 +74,7 @@ export const LLM_CONSTANTS = {
     GLM: 'glm',
     GLM_FLASH: 'glm-flash',
     FUGU_ULTRA: 'fugu-ultra',
+    FUGU_MAX: 'fugu-max',
     // Qwen (QwenCloud/DashScope). Stable picker ids without the version, matching the gpt/gemini
     // pattern, so future repoints don't orphan persisted ids.
     QWEN_MAX: 'qwen-max',
@@ -122,14 +123,14 @@ export interface ModelConfig {
     temperature?: number; // Override agent default temperature; omit to use the agent's built-in default
     // Reasoning-depth knobs. Providers speak two dialects, so there are two fields; a model uses
     // at most one of them, and omitting it means "provider default" (e.g. GPT-5 runs at OpenAI's
-    // default medium effort, Fugu/Grok at their fixed "high").
+    // default medium effort, Grok at its fixed "high"; Fugu Ultra's default is xhigh, so it is pinned).
     // ReasoningEffort is the superset of provider vocabularies — each provider accepts only its
     // own slice (see reasoning-effort.ts for the per-provider types), and every effort-aware
     // agent clamps the value to the nearest level its API takes before sending. So a catalog
     // pin or a per-call override can use any level; prefer one the model natively supports
     // (Anthropic adaptive low|medium|high|xhigh|max, OpenAI minimal|low|medium|high|xhigh,
     // Gemini 3.x minimal|low|medium|high — 3.1 Pro and 3.7/3.8 Flash reject 'minimal' —, Fugu
-    // high|xhigh, GLM-5.3 and DeepSeek V4 low|high|max).
+    // high|xhigh|max, GLM-5.3 and DeepSeek V4 low|high|max).
     reasoningEffort?: ReasoningEffort; // Effort-based APIs (Anthropic adaptive thinking, Gemini 3.x)
     thinkingBudgetTokens?: number; // Budget-based APIs (Anthropic enabled thinking, Qwen thinking_budget)
     // Per-request output ceiling, overriding DEFAULT_MAX_OUTPUT_TOKENS. Only set it for models
@@ -381,12 +382,36 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // so the rate is not even guaranteed stable, and its cache hit rate was 9.3% — effectively
     // zero, since every hit came from a duplicate call seconds apart rather than turn-to-turn
     // prefix reuse. Ultra costs the same and is predictable.
+    //
+    // reasoningEffort is PINNED on both entries because the server default differs per model:
+    // fugu-ultra defaults to `xhigh` (console.sakana.ai/models), fugu-max to `high`. Until
+    // 2026-09-20 the agent sent no effort at all, so every Ultra turn ran at xhigh. Measured that
+    // day on a 2k-token three-day game prompt (two samples each, chat completions, json mode):
+    //   ultra xhigh  148s / 265s   $0.34 / $0.50 a turn (orchestration tokens included)
+    //   ultra high    65s /  78s   $0.16 / $0.17
+    //   max   high     6s /  10s   $0.006 / $0.008
+    //   max   xhigh   41s /  47s   $0.02
+    // `max_tokens` is not a latency lever for Ultra: Sakana applies it to the final response only,
+    // the orchestrator "still uses maximum token limit". Effort is the only knob.
     [LLM_CONSTANTS.FUGU_ULTRA]: {
         displayName: 'Sakana Fugu Ultra',
         modelApiName: 'fugu-ultra',
         apiKeyName: API_KEY_CONSTANTS.FUGU,
         hasThinking: false,
+        reasoningEffort: 'high',
         tags: ['extremely-slow', 'expensive'],
+    },
+    // Fugu Max (2026-09-20, fugu-max → fugu-max-v1.0): Sakana's "largest pool of models on the
+    // cost–performance Pareto frontier" — the everyday Fugu at 5x less than Ultra's output rate
+    // and a fraction of its latency. It reasons (reasoning_tokens 80-500 a turn) but, like
+    // Ultra, never returns reasoning_content, hence hasThinking: false. No orchestration
+    // tokens observed on any call.
+    [LLM_CONSTANTS.FUGU_MAX]: {
+        displayName: 'Sakana Fugu Max',
+        modelApiName: 'fugu-max',
+        apiKeyName: API_KEY_CONSTANTS.FUGU,
+        hasThinking: false,
+        reasoningEffort: 'high',
     },
 
     // Qwen models (QwenCloud, OpenAI-compatible endpoint). Added 2026-08-05 straight into the
@@ -759,9 +784,12 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         extendedContextThresholdTokens: 200_000
     },
 
-    // Sakana Fugu models. Base `fugu` was retired 2026-08-04 — it had no published price and
-    // measured out at these same ultra rates, so it has no pricing entry.
-    // fugu-ultra has published pricing. Above 272K context the rates roughly double.
+    // Sakana Fugu models (console.sakana.ai/pricing, read 2026-09-20). Base `fugu` was retired
+    // 2026-08-04 — it had no published price and measured out at these same ultra rates, so it
+    // has no pricing entry. fugu-ultra: above 272K context the rates roughly double. Ultra also
+    // reports "orchestration" tokens (its internal expert calls) in prompt_tokens_details /
+    // completion_tokens_details, billed at these same input/output rates — FuguAgent folds them
+    // into the token counts before pricing.
     [SupportedAiModels[LLM_CONSTANTS.FUGU_ULTRA].modelApiName]: {
         inputPrice: 5.0,
         outputPrice: 30.0,
@@ -770,6 +798,12 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         extendedContextOutputPrice: 45.0,
         extendedContextCacheHitPrice: 1.00,
         extendedContextThresholdTokens: 272_000
+    },
+    // fugu-max: flat rates, no context tiers.
+    [SupportedAiModels[LLM_CONSTANTS.FUGU_MAX].modelApiName]: {
+        inputPrice: 2.0,
+        outputPrice: 6.0,
+        cacheHitPrice: 0.25,
     },
 
     // Qwen models. Rates from the official pricing page (qwencloud.com/pricing/api, read

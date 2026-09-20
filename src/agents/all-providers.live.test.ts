@@ -156,7 +156,7 @@ const TEXT_SWEEP_MODELS = new Set<string>([
     LLM_CONSTANTS.GROK,
     LLM_CONSTANTS.KIMI,
     LLM_CONSTANTS.GLM,
-    LLM_CONSTANTS.FUGU_ULTRA,
+    LLM_CONSTANTS.FUGU_MAX,             // one Fugu code path; Max is the cheap, fast one
     LLM_CONSTANTS.QWEN_FLASH,
     LLM_CONSTANTS.MINIMAX,
     LLM_CONSTANTS.MUSE_SPARK,           // encrypted reasoning + optional summary (observed)

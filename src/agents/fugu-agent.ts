@@ -1,30 +1,41 @@
 import { AbstractAgent } from "./abstract-agent";
+import { toFuguEffort } from "../reasoning-effort";
 import { mergeThinking, stripInlineThinking } from "../thinking-utils";
 import { OpenAI } from "openai";
 import { AIMessage, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
-import { extractUsageAndCalculateCost } from "../pricing";
-import { logger } from "../logger";
+import { calculateModelCost } from "../catalog";
 import { z } from 'zod';
 import { ZodSchemaConverter } from '../zod-schema-converter';
 import { parseAndValidateLlmJson } from '../json-response-parser';
 
 // Sakana Fugu agent. The API is OpenAI-compatible (https://api.sakana.ai/v1), so we use the
-// OpenAI SDK with a custom baseURL. Both `fugu` and `fugu-ultra` always reason; the API exposes
-// two effort levels ("high" — the default — and "xhigh"/"max"). We expose a single picker entry
-// per model at the default "high" effort, so we do NOT send `reasoning_effort` (omitting it keeps
-// the request minimal and avoids param-rejection on this endpoint; "high" is applied by default).
-// Reasoning content, when returned, surfaces as `message.reasoning_content` (OpenAI-compatible).
+// OpenAI SDK with a custom baseURL. Every Fugu model always reasons; `reasoning_effort` takes
+// high | xhigh | max (verified live 2026-09-20; anything else is a 400) and the SERVER DEFAULT
+// DIFFERS PER MODEL — xhigh for fugu-ultra, high for fugu-max — so the field is always sent
+// from the catalog pin (see the Fugu entries in catalog.ts for the measured latency and cost
+// per level). Reasoning is never surfaced: responses carry reasoning_tokens but no
+// reasoning_content (the field is still read in case that changes).
+//
+// Usage: fugu-ultra reports its internal expert calls as "orchestration" tokens in
+// prompt_tokens_details / completion_tokens_details, OUTSIDE prompt_tokens / completion_tokens
+// (total_tokens excludes them too), and bills them at the standard input/output rates
+// (console.sakana.ai/pricing). They are 2-4x the visible counts, so they are folded into the
+// reported usage here; the generic extractor would undercount Ultra by that much.
 export class FuguAgent extends AbstractAgent {
     private readonly client: OpenAI;
     // A getter, not a field: `maxOutputTokens` can be raised after construction, and a field
     // initializer would snapshot the default and silently ignore the override.
-    private get defaultParams(): Omit<Parameters<OpenAI['chat']['completions']['create']>[0], 'messages'> {
+    // `reasoning_effort` is re-declared as string: the OpenAI SDK's union lacks Sakana's 'max'.
+    private get defaultParams(): Omit<Parameters<OpenAI['chat']['completions']['create']>[0], 'messages' | 'reasoning_effort'> & {
+        reasoning_effort: string;
+    } {
         return {
             model: this.model,
             stream: false,
-            // Caps visible output only. Server-side orchestration/reasoning tokens are
-            // separate and unaffected by this.
+            // Caps the final reply only. Per Sakana's docs the orchestrator "still uses maximum
+            // token limit", so this bounds neither Ultra's latency nor its orchestration spend.
             max_tokens: this.maxOutputTokens,
+            reasoning_effort: toFuguEffort(this.reasoningEffort ?? 'high'),
         };
     }
 
@@ -63,34 +74,6 @@ export class FuguAgent extends AbstractAgent {
         }));
     }
 
-    // ───────────────────────────────────────────────────────────────────────────────────────
-    // TEMPORARY (cost calibration). Base `fugu` is a dynamic router with no published per-token
-    // price and Sakana returns NO cost field in the response — only token counts. Crucially the
-    // response also reports "orchestration tokens" (billed at input/output rates per Sakana's
-    // pricing page) that our standard TokenUsage drops. This logs the full raw breakdown to
-    // BetterStack under a distinctive tag so we can sum real tokens per game and, combined with
-    // the Sakana billing dashboard total, derive the true per-token rate. REMOVE AFTER CALIBRATION.
-    private logRawUsageForCalibration(completion: OpenAI.Chat.Completions.ChatCompletion): void {
-        const usage: any = completion?.usage;
-        if (!usage) return;
-        logger.info('FUGU_COST_CALIBRATION', {
-            tag: 'FUGU_COST_CALIBRATION',
-            model: this.model,
-            agentName: this.name,
-            gameId: this.gameId,
-            userId: this.userId,
-            promptTokens: usage.prompt_tokens ?? 0,
-            completionTokens: usage.completion_tokens ?? 0,
-            totalTokens: usage.total_tokens ?? 0,
-            cachedTokens: usage.prompt_tokens_details?.cached_tokens ?? 0,
-            orchestrationInputTokens: usage.prompt_tokens_details?.orchestration_input_tokens ?? 0,
-            orchestrationInputCachedTokens: usage.prompt_tokens_details?.orchestration_input_cached_tokens ?? 0,
-            reasoningTokens: usage.completion_tokens_details?.reasoning_tokens ?? 0,
-            orchestrationOutputTokens: usage.completion_tokens_details?.orchestration_output_tokens ?? 0,
-            rawUsage: usage,
-        });
-    }
-
     private extractThinkingAndUsage(
         completion: OpenAI.Chat.Completions.ChatCompletion
     ): { thinkingContent: string; tokenUsage?: TokenUsage } {
@@ -102,23 +85,14 @@ export class FuguAgent extends AbstractAgent {
             this.logger(`Captured reasoning_content (${thinkingContent.length} characters)`);
         }
 
-        let tokenUsage: TokenUsage | undefined;
-        const usageResult = extractUsageAndCalculateCost(this.model, completion);
-
-        if (usageResult) {
-            tokenUsage = {
-                inputTokens: usageResult.usage.promptTokens,
-                outputTokens: usageResult.usage.completionTokens,
-                totalTokens: usageResult.usage.totalTokens,
-                costUSD: usageResult.cost,
-                ...(usageResult.usage.cacheHitTokens !== undefined ? { cachedInputTokens: usageResult.usage.cacheHitTokens } : {})
-            };
-
-            if (usageResult.usage.reasoningTokens) {
-                const reasoningTokens = usageResult.usage.reasoningTokens;
-                const finalAnswerTokens = Math.max(0, tokenUsage.outputTokens - reasoningTokens);
+        const tokenUsage = extractFuguTokenUsage(this.model, completion);
+        if (tokenUsage) {
+            const details: any = completion.usage ?? {};
+            const orchestrationIn = details.prompt_tokens_details?.orchestration_input_tokens ?? 0;
+            const orchestrationOut = details.completion_tokens_details?.orchestration_output_tokens ?? 0;
+            if (tokenUsage.reasoningTokens || orchestrationIn || orchestrationOut) {
                 this.logger(
-                    `Output breakdown: ${reasoningTokens} reasoning tokens, ${finalAnswerTokens} final answer tokens`
+                    `Usage breakdown: ${tokenUsage.reasoningTokens ?? 0} reasoning tokens; orchestration ${orchestrationIn} in / ${orchestrationOut} out (billed, folded into the totals)`
                 );
             }
         }
@@ -167,8 +141,6 @@ export class FuguAgent extends AbstractAgent {
                 this.logger(this.logTemplates.error(this.name, apiError));
                 throw new Error(this.errorMessages.apiError(apiError));
             }
-
-            this.logRawUsageForCalibration(completion); // TEMPORARY — remove after cost calibration
 
             const rawReply = completion.choices[0]?.message?.content;
             if (!rawReply) {
@@ -224,8 +196,6 @@ export class FuguAgent extends AbstractAgent {
                 throw new Error(this.errorMessages.apiError(apiError));
             }
 
-            this.logRawUsageForCalibration(completion); // TEMPORARY — remove after cost calibration
-
             const rawReply = completion.choices[0]?.message?.content;
             if (!rawReply) {
                 throw new Error(this.errorMessages.emptyResponse);
@@ -248,4 +218,40 @@ export class FuguAgent extends AbstractAgent {
             throw new Error(this.errorMessages.apiError(error));
         }
     }
+}
+
+/**
+ * Token usage for a Fugu chat completion with the orchestration tokens folded in. Exported for
+ * the unit test; the agent calls it through extractThinkingAndUsage.
+ *
+ * Wire shape (fugu-ultra, observed 2026-09-20):
+ *   usage.prompt_tokens / completion_tokens / total_tokens — the visible request only
+ *   usage.prompt_tokens_details.{cached_tokens, orchestration_input_tokens, orchestration_input_cached_tokens}
+ *   usage.completion_tokens_details.{reasoning_tokens, orchestration_output_tokens}
+ * fugu-max reports the same fields with the orchestration counts at 0.
+ */
+export function extractFuguTokenUsage(modelApiName: string, completion: { usage?: any }): TokenUsage | undefined {
+    const usage = completion?.usage;
+    if (!usage) {
+        return undefined;
+    }
+    const promptDetails = usage.prompt_tokens_details ?? {};
+    const completionDetails = usage.completion_tokens_details ?? {};
+    const inputTokens = (usage.prompt_tokens ?? 0) + (promptDetails.orchestration_input_tokens ?? 0);
+    const outputTokens = (usage.completion_tokens ?? 0) + (completionDetails.orchestration_output_tokens ?? 0);
+    const cachedInputTokens = (promptDetails.cached_tokens ?? 0) + (promptDetails.orchestration_input_cached_tokens ?? 0);
+    const reasoningTokens = completionDetails.reasoning_tokens ?? 0;
+    return {
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        cachedInputTokens,
+        // Omitted rather than 0: consumers persist the object as-is (see TokenUsage).
+        ...(reasoningTokens > 0 ? { reasoningTokens } : {}),
+        costUSD: calculateModelCost(modelApiName, inputTokens, outputTokens, {
+            cacheHitTokens: cachedInputTokens,
+            // Context-tier selection: the request's own size, not the orchestrator's traffic.
+            contextTokens: usage.total_tokens ?? inputTokens,
+        }),
+    };
 }
