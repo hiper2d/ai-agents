@@ -285,10 +285,15 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         reasoningEffort: 'minimal',
         tags: ['fast', 'cheap'],
     },
-    // Always-on reasoning (xAI default effort "high", cannot be disabled) — no non-thinking sibling
+    // Always-on reasoning — no non-thinking sibling. Bumped 4.6 → 4.7 on 2026-09-22 (id verified
+    // against GET /v1/models). Same price, same 200K extended-context boundary; the context
+    // window is 500K. NOTE 4.7 newly accepts `reasoning_effort` (low | medium | high | xhigh,
+    // default high) where 4.6 had no knob at all. GrokAgent still sends none, so behaviour is
+    // unchanged — but Grok is the app's most expensive model per turn (94% of its output is
+    // reasoning), so a lower pin is the obvious lever to measure before anything else.
     [LLM_CONSTANTS.GROK]: {
-        displayName: 'Grok 4.6',
-        modelApiName: 'grok-4.6',
+        displayName: 'Grok 4.7',
+        modelApiName: 'grok-4.7',
         apiKeyName: API_KEY_CONSTANTS.GROK,
         hasThinking: true,
         temperature: 0.7,
@@ -787,8 +792,9 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     },
 
     // Grok models. Cached price is per-model on xAI (not a uniform ratio):
-    // grok-4.6 is $0.50/M cached vs $2.00/M input, and all rates double for prompts
-    // >= 200K tokens, per docs.x.ai/developers/models (verified 2026-08-12).
+    // grok-4.7 is $0.50/M cached vs $2.00/M input, and all rates double for prompts
+    // >= 200K tokens, per docs.x.ai/docs/models (re-verified 2026-09-22 for 4.7).
+    // 4.7 carries over 4.6's rates unchanged — the bump is capability-only, not a reprice.
     [SupportedAiModels[LLM_CONSTANTS.GROK].modelApiName]: {
         inputPrice: 2.0,
         outputPrice: 6.0,
