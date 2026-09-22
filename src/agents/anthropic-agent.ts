@@ -19,6 +19,17 @@ interface ThinkingBlock {
 
 type CacheTtl = '5m' | '1h';
 
+/**
+ * Models that reject `thinking: {type: "disabled"}` with a 400 and can only run adaptive.
+ * Fable has no non-thinking variant at all; Opus 5.5 (2026-09-22) dropped the disabled mode
+ * that Opus 5 still accepted at effort <= high, answering with
+ *   "thinking.type.disabled" is not supported for this model.
+ * For these, omit `thinking` entirely — the API then runs adaptive at the model's default
+ * effort, which is the only legal way to ask them for a cheap, shallow answer.
+ */
+const rejectsDisabledThinking = (model: string): boolean =>
+    model.includes('fable') || model.includes('opus-5-5');
+
 interface TextBlock {
     type: 'text';
     text: string;
@@ -316,7 +327,10 @@ export class ClaudeAgent extends AbstractAgent {
                 // Opus 4.8 / Sonnet 5 reject a non-default temperature. Sonnet 5 also defaults to
                 // adaptive thinking when `thinking` is omitted, so disable it explicitly to keep the
                 // non-thinking variant from reasoning (avoiding extra thinking cost and latency).
-                (params as any).thinking = { type: "disabled" };
+                // Fable and Opus 5.5 refuse the disabled mode outright — leave `thinking` unset.
+                if (!rejectsDisabledThinking(this.model)) {
+                    (params as any).thinking = { type: "disabled" };
+                }
             } else {
                 // Older models (Haiku 4.5): no adaptive thinking; pass the configured temperature.
                 params.temperature = this.temperature;
@@ -455,7 +469,10 @@ export class ClaudeAgent extends AbstractAgent {
             } else if (usesAdaptiveThinking) {
                 // Opus 4.8 / Sonnet 5 reject a non-default temperature and default to adaptive
                 // thinking when `thinking` is omitted; disable it explicitly for the non-thinking variant.
-                (params as any).thinking = { type: "disabled" };
+                // Fable and Opus 5.5 refuse the disabled mode outright — leave `thinking` unset.
+                if (!rejectsDisabledThinking(this.model)) {
+                    (params as any).thinking = { type: "disabled" };
+                }
             } else {
                 // Older models (Haiku 4.5): no adaptive thinking; pass the configured temperature.
                 params.temperature = this.temperature;

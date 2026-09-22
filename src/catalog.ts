@@ -152,9 +152,13 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     },
 
     // Claude models — thinking-only entries (non-thinking variants retired 2026-08-05)
+    // Opus moved 5 → 5.5 on 2026-09-22 (`claude-opus-5-5`, verified against GET /v1/models).
+    // Cheaper than Opus 5 ($4/$20 vs $5/$25) and the same 1M context / 128K output. Thinking is
+    // always on, as on Opus 5. Its API default effort is `medium`, but we keep the catalog-wide
+    // `high` pin so bot answers don't get shallower than every other model in the lobby.
     [LLM_CONSTANTS.CLAUDE_OPUS]: {
-        displayName: 'Claude 5 Opus',
-        modelApiName: 'claude-opus-5',
+        displayName: 'Claude 5.5 Opus',
+        modelApiName: 'claude-opus-5-5',
         apiKeyName: API_KEY_CONSTANTS.ANTHROPIC,
         hasThinking: true,
         reasoningEffort: 'high',
@@ -713,9 +717,13 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         cacheHitPrice: 0.25
     },
     [SupportedAiModels[LLM_CONSTANTS.CLAUDE_OPUS].modelApiName]: {
-        inputPrice: 5.0,
-        outputPrice: 25.0,
-        cacheHitPrice: 0.50
+        // Opus 5.5 (2026-09-22): $4/$20, down from Opus 5's $5/$25. Cache reads are 5% of input
+        // here, not the usual 10% — $0.20, not $0.40. Cache WRITES ($5 at 5m, $8 at 1h) are not
+        // modelled: calculateCost bills every uncached prompt token at inputPrice, so a write is
+        // under-billed by the 1.25x/2x premium. Pre-existing for every Anthropic model.
+        inputPrice: 4.0,
+        outputPrice: 20.0,
+        cacheHitPrice: 0.20
     },
     [SupportedAiModels[LLM_CONSTANTS.CLAUDE_SONNET].modelApiName]: {
         inputPrice: 2.0,
