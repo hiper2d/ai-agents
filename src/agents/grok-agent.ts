@@ -1,5 +1,6 @@
 import {AbstractAgent} from "./abstract-agent";
 import { stableHashHex } from "../text-utils";
+import { toXaiEffort } from "../reasoning-effort";
 import {OpenAI} from "openai";
 import {AIMessage, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG} from "../types";
 import {parseAndValidateLlmJson} from '../json-response-parser';
@@ -130,6 +131,17 @@ export class GrokAgent extends AbstractAgent {
         }
     }
 
+    /**
+     * A stable key per (game, bot) so xAI routes this conversation's requests to the same
+     * server. Without it a request often lands on a cache-cold machine and the whole prompt
+     * bills at full input price — xAI calls this out as the most common caching mistake.
+     * Falls back to the bot name alone outside a game (story generation, tests), which is
+     * still stabler than sending nothing.
+     */
+    private get promptCacheKey(): string {
+        return this.gameId ? `${this.gameId}:${this.name}` : this.name;
+    }
+
     private createResponse(input: any[], jsonMode: boolean): Promise<any> {
         return this.client.responses.create({
             model: this.model,
@@ -140,9 +152,16 @@ export class GrokAgent extends AbstractAgent {
             // ever starts truncating — measured turns peak far below the shared default.
             max_output_tokens: this.maxOutputTokens,
             // We manage conversation state ourselves; encrypted reasoning is only
-            // returned for unstored responses.
+            // returned for unstored responses. Grok 4.7 returns reasoning.encrypted_content
+            // on the Responses API whether or not `include` asks for it; we keep asking so
+            // the behaviour is identical if the model is ever pointed back at 4.6.
             store: false,
             include: ["reasoning.encrypted_content"],
+            prompt_cache_key: this.promptCacheKey,
+            // Grok 4.7 is the first Grok with an effort knob (4.6 had none) and defaults to
+            // "high". Only send it when the catalog asks for a level, so an unset entry keeps
+            // the provider default rather than us silently picking one.
+            ...(this.reasoningEffort ? { reasoning: { effort: toXaiEffort(this.reasoningEffort) } } : {}),
             ...(jsonMode ? { text: { format: { type: 'json_object' } } } : {}),
         } as any);
     }

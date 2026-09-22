@@ -25,8 +25,11 @@ import type { ReasoningEffort } from './catalog';
  *   not on the shared scale and means "don't reason", which an agent expresses by omitting the
  *   field, so the exported slice starts at minimal. Only "high" is documented to return the
  *   thinking chunk; the intermediate levels are accepted but unverified.
- * Qwen accepts reasoning_effort but ignores it (thinking_budget is its knob); MiniMax, Kimi and
- * Grok expose no effort parameter.
+ * - xAI Grok 4.7 (docs.x.ai/developers/model-capabilities/text/reasoning, 2026-09-22):
+ *   low|medium|high|xhigh, default high, sent on the Responses API as `reasoning: {effort}`.
+ *   Chat Completions has no equivalent. Grok 4.6 and earlier had no knob at all.
+ * Qwen accepts reasoning_effort but ignores it (thinking_budget is its knob); MiniMax and Kimi
+ * expose no effort parameter.
  */
 export type OpenAIReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 export type AnthropicReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
@@ -36,6 +39,7 @@ export type DeepSeekReasoningEffort = 'low' | 'high' | 'max';
 export type FuguReasoningEffort = 'high' | 'xhigh' | 'max';
 export type MetaReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type MistralReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+export type XaiReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
 
 /** The shared scale, lowest first. */
 export const REASONING_EFFORT_SCALE: readonly ReasoningEffort[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
@@ -48,6 +52,7 @@ export const DEEPSEEK_REASONING_EFFORTS: readonly DeepSeekReasoningEffort[] = ['
 export const FUGU_REASONING_EFFORTS: readonly FuguReasoningEffort[] = ['high', 'xhigh', 'max'];
 export const META_REASONING_EFFORTS: readonly MetaReasoningEffort[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 export const MISTRAL_REASONING_EFFORTS: readonly MistralReasoningEffort[] = ['minimal', 'low', 'medium', 'high', 'xhigh'];
+export const XAI_REASONING_EFFORTS: readonly XaiReasoningEffort[] = ['low', 'medium', 'high', 'xhigh'];
 
 /** Clamps `effort` to the nearest level in `allowed` (by rank on the shared scale, ties go up). */
 export function clampReasoningEffort<T extends ReasoningEffort>(effort: ReasoningEffort, allowed: readonly T[]): T {
@@ -73,3 +78,4 @@ export const toDeepSeekEffort = (effort: ReasoningEffort): DeepSeekReasoningEffo
 export const toMetaEffort = (effort: ReasoningEffort): MetaReasoningEffort => clampReasoningEffort(effort, META_REASONING_EFFORTS);
 export const toFuguEffort = (effort: ReasoningEffort): FuguReasoningEffort => clampReasoningEffort(effort, FUGU_REASONING_EFFORTS);
 export const toMistralEffort = (effort: ReasoningEffort): MistralReasoningEffort => clampReasoningEffort(effort, MISTRAL_REASONING_EFFORTS);
+export const toXaiEffort = (effort: ReasoningEffort): XaiReasoningEffort => clampReasoningEffort(effort, XAI_REASONING_EFFORTS);
