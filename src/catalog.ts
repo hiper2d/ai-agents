@@ -213,10 +213,16 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // GPT-6 Astra (2026-09-03): OpenAI's frontier tier above Sol. No `none` reasoning effort;
     // temperature/top_p are rejected — Gpt5Agent sends neither, so the same agent serves it.
     // The catalog temperature is only carried for the agent constructor signature.
+    // All four OpenAI entries carry reasoningEffort: 'medium' as of 2026-09-22. That is
+    // OpenAI's own current default, established by MEASUREMENT rather than docs: each model was
+    // called with no reasoning param and the effort it echoes back read off the response, since
+    // OpenAI documents the default for Sol, Luna and the 5.6 family but never states Astra's.
+    // Pinning it changes no behaviour today; it stops the default moving under us silently.
     [LLM_CONSTANTS.GPT_ASTRA]: {
         displayName: 'GPT-6 Astra',
         modelApiName: 'gpt-6-astra',
         apiKeyName: API_KEY_CONSTANTS.OPENAI,
+        reasoningEffort: 'medium',
         hasThinking: true,
         temperature: 1,
         tags: ['expensive'],
@@ -231,6 +237,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         displayName: 'GPT-6 Sol',
         modelApiName: 'gpt-6-sol',
         apiKeyName: API_KEY_CONSTANTS.OPENAI,
+        reasoningEffort: 'medium',
         hasThinking: true,
         temperature: 1,
         tags: ['expensive'],
@@ -239,6 +246,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         displayName: 'GPT-5.6 Terra',
         modelApiName: 'gpt-5.6-terra',
         apiKeyName: API_KEY_CONSTANTS.OPENAI,
+        reasoningEffort: 'medium',
         hasThinking: true,
         temperature: 1,
         tags: ['fast', 'expensive'],
@@ -247,6 +255,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         displayName: 'GPT-6 Luna',
         modelApiName: 'gpt-6-luna',
         apiKeyName: API_KEY_CONSTANTS.OPENAI,
+        reasoningEffort: 'medium',
         hasThinking: true,
         temperature: 1,
         tags: ['fast', 'cheap'],

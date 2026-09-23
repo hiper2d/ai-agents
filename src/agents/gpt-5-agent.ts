@@ -6,6 +6,7 @@ import { calculateOpenAICost } from "../pricing";
 import { stableHashHex } from "../text-utils";
 import { z } from 'zod';
 import { zodTextFormat } from 'openai/helpers/zod';
+import { toOpenAIEffort } from "../reasoning-effort";
 
 export class Gpt5Agent extends AbstractAgent {
     private readonly client: OpenAI;
@@ -45,6 +46,20 @@ export class Gpt5Agent extends AbstractAgent {
         });
     }
 
+
+    /**
+     * `reasoning: {effort}`, sent only when the catalog names a level. Every current OpenAI
+     * model defaults to "medium" when the field is omitted — verified 2026-09-22 by calling
+     * astra/sol/terra/luna with no reasoning param and reading the effort the API echoes back,
+     * since OpenAI documents the default for Sol, Luna and the 5.6 family but not for Astra.
+     * The catalog pins all four to medium so the level is explicit in our request rather than
+     * inherited from a default OpenAI can change under us.
+     */
+    private reasoningParams(): Record<string, unknown> {
+        return this.reasoningEffort
+            ? { reasoning: { effort: toOpenAIEffort(this.reasoningEffort) } }
+            : {};
+    }
 
     /**
      * Structured output method using Zod with OpenAI's Responses API
@@ -88,6 +103,7 @@ export class Gpt5Agent extends AbstractAgent {
                     input: input,
                     max_output_tokens: this.maxOutputTokens,
                     prompt_cache_key: this.promptCacheKey,
+                    ...this.reasoningParams(),
                     text: {
                         format: zodTextFormat(schemaToSend, "response_schema"),
                     }
@@ -203,6 +219,7 @@ export class Gpt5Agent extends AbstractAgent {
                 input: input,
                 max_output_tokens: this.maxOutputTokens,
                 prompt_cache_key: this.promptCacheKey,
+                ...this.reasoningParams(),
             });
 
             const content = response.output_text;
