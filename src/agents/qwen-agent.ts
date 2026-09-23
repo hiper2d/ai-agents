@@ -14,9 +14,11 @@ import { parseAndValidateLlmJson } from '../json-response-parser';
 // `message.reasoning_content` — verified live 2026-08-05 against qwen3.8-max / 3.7-plus /
 // 3.7-flash, all of which accept non-streaming thinking requests.
 //
-// Structured output: Qwen's `response_format: json_object` is NOT supported in thinking mode,
-// and we always think — so schema constraints are conveyed in-prompt and parsed leniently,
-// never via response_format.
+// Structured output: strict `response_format: json_schema`. The 3.8 and 3.7 models support it
+// WITH thinking on (docs.qwencloud.com "Structured output"; probed live 2026-09-23 on
+// qwen3.8-flash and qwen3.8-max: 12/12 valid, reasoning_content still returned). Until then we
+// sent no response_format on the belief that thinking mode rejects JSON mode, which left the
+// schema as a prompt instruction only — Flash answered a vote in prose once in production.
 
 /**
  * Qwen's content filter answers HTTP 400 `InternalError.Algo.DataInspectionFailed: Input
@@ -195,8 +197,8 @@ export class QwenAgent extends AbstractAgent {
             this.logAsking(messages);
             this.logMessages(messages);
 
-            // No response_format here on purpose: Qwen rejects JSON mode when thinking is
-            // enabled, so the schema is enforced in-prompt + by the lenient parser.
+            // The schema is enforced by response_format; the prompt copy stays because the docs
+            // recommend describing the structure too, and the lenient parser stays as a backstop.
             const schemaDescription = ZodSchemaConverter.toPromptDescription(zodSchema);
             const lastMessage = openAIMessages[openAIMessages.length - 1];
             if (lastMessage) {
@@ -208,7 +210,11 @@ export class QwenAgent extends AbstractAgent {
                 const params: any = {
                     ...this.defaultParams,
                     messages: openAIMessages,
-                    ...this.thinkingParams()
+                    ...this.thinkingParams(),
+                    response_format: {
+                        type: 'json_schema',
+                        json_schema: ZodSchemaConverter.toOpenAIJsonSchema(zodSchema, 'response_schema'),
+                    },
                 };
                 completion = await this.client.chat.completions.create(params) as OpenAI.Chat.Completions.ChatCompletion;
             } catch (apiError) {

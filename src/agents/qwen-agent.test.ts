@@ -1,6 +1,7 @@
 import { AIMessage } from '../types';
 import { SILENT_LOGGING, ReplySchema } from '../testing/fixtures';
 import { QwenAgent } from './qwen-agent';
+import { ZodSchemaConverter } from '../zod-schema-converter';
 
 /**
  * Request-shape guard for the Qwen agent (mocked, free).
@@ -36,13 +37,24 @@ describe('QwenAgent request shape', () => {
     expect(captured.params.max_tokens).toBe(agent.maxOutputTokens);
   });
 
-  it('askWithZodSchema sends the same thinking params and no response_format', async () => {
+  it('askWithZodSchema sends the same thinking params plus a strict json_schema response_format', async () => {
     const { agent, captured } = makeAgent(jsonCompletion);
     await agent.askWithZodSchema(ReplySchema, MESSAGES);
 
     expect(captured.params.enable_thinking).toBe(true);
     expect(captured.params.thinking_budget).toBe(1024);
     expect(captured.params.reasoning_effort).toBeUndefined();
+    // Qwen 3.7/3.8 support json_schema with thinking on (probed live 2026-09-23).
+    expect(captured.params.response_format).toEqual({
+      type: 'json_schema',
+      json_schema: ZodSchemaConverter.toOpenAIJsonSchema(ReplySchema, 'response_schema'),
+    });
+    expect(captured.params.response_format.json_schema.strict).toBe(true);
+  });
+
+  it('askText sends no response_format', async () => {
+    const { agent, captured } = makeAgent(textCompletion);
+    await agent.askText(MESSAGES);
     expect(captured.params.response_format).toBeUndefined();
   });
 
