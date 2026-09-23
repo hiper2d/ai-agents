@@ -296,6 +296,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         modelApiName: 'grok-4.7',
         apiKeyName: API_KEY_CONSTANTS.GROK,
         hasThinking: true,
+        reasoningEffort: 'high',
         temperature: 0.7,
     },
 
@@ -346,6 +347,9 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         hasThinking: true,
         // Temperature is omitted from the request: kimi-k3 rejects any value other than 1.
         // Speed samples: 17s (2026-08-04) and 28.9s (2026-08-05) — graded into the >25s tier.
+        // Pinned 'high' 2026-09-22, down from Moonshot's 'max' default: K3 had no levels at
+        // launch and the agent hardcoded max, so this is the first time the knob exists.
+        reasoningEffort: 'high',
         tags: ['very-slow', 'expensive'],
     },
 

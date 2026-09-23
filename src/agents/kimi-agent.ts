@@ -3,15 +3,17 @@ import { mergeThinking, stripInlineThinking } from "../thinking-utils";
 import { OpenAI } from "openai";
 import { AIMessage, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
 import { extractUsageAndCalculateCost } from "../pricing";
+import { toKimiEffort } from "../reasoning-effort";
 import { z } from 'zod';
 import { ZodSchemaConverter } from '../zod-schema-converter';
 import { parseAndValidateLlmJson } from '../json-response-parser';
 
 // Kimi K3 agent. The Moonshot API is OpenAI-compatible (https://api.moonshot.ai/v1).
 //
-// K3 always reasons: reasoning is on by default, and `reasoning_effort` — whose only accepted
-// value today is "max" — selects the level. We send it explicitly so the model stays pinned at
-// max should Moonshot ship lower levels with a different default. Sending it is otherwise a no-op.
+// K3 always reasons: reasoning is on by default, and `reasoning_effort` selects the level.
+// Moonshot shipped low|high|max after launch (docs read 2026-09-22), so the level now comes from
+// the catalog instead of the hardcoded "max" this agent used when max was the only value. The
+// provider default is still max, which is what an entry with no `reasoningEffort` gets.
 //
 // The K2-era `thinking: { type: 'disabled' }` toggle does still suppress reasoning on kimi-k3,
 // but it is undocumented for K3 and could disappear without notice, so we don't rely on it: this
@@ -27,8 +29,8 @@ export class KimiAgent extends AbstractAgent {
             model: this.model,
             stream: false,
             max_tokens: this.maxOutputTokens,
-            // Moonshot's only accepted level; "max" is not in the OpenAI SDK's ReasoningEffort union.
-            reasoning_effort: 'max' as any,
+            // "max" is not in the OpenAI SDK's ReasoningEffort union, hence the cast.
+            reasoning_effort: toKimiEffort(this.reasoningEffort ?? 'max') as any,
         };
     }
 
