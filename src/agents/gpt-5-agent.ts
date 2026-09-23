@@ -56,9 +56,56 @@ export class Gpt5Agent extends AbstractAgent {
      * inherited from a default OpenAI can change under us.
      */
     private reasoningParams(): Record<string, unknown> {
-        return this.reasoningEffort
-            ? { reasoning: { effort: toOpenAIEffort(this.reasoningEffort) } }
-            : {};
+        return {
+            reasoning: {
+                ...(this.reasoningEffort ? { effort: toOpenAIEffort(this.reasoningEffort) } : {}),
+                // Render reasoning from earlier turns into this sample. It is already the
+                // default on all four models we run, but stated explicitly for the same reason
+                // effort is. It only does anything because we replay the items ourselves.
+                context: 'all_turns',
+            },
+        };
+    }
+
+    /**
+     * Responses API input items, with each assistant turn's stored reasoning items replayed
+     * immediately before it. OpenAI attaches `encrypted_content` to reasoning items whenever
+     * `store` is false, which is how we call it: the documented stateless route is to preserve
+     * the output items and replay the history yourself, rather than lean on
+     * `previous_response_id` and OpenAI-side session state.
+     *
+     * This was a single flattened string before ("User: ... / Assistant: ..."), which left
+     * nowhere to put reasoning items. The system prompt still travels ONLY as `instructions`.
+     *
+     * Reasoning is readable only within one model family and the API silently omits items it
+     * cannot read, so a bot moved between GPT-6 and GPT-5.6 Terra loses its reasoning and keeps
+     * working. A bot moved to another provider never reaches this code at all: every agent
+     * reads only its own field, and a missing one falls back to a plain message.
+     */
+    private buildResponsesInput(messages: AIMessage[]): any[] {
+        const input: any[] = [];
+        for (const msg of this.prepareMessages(messages)) {
+            if (msg.role === 'assistant' && msg.openaiEncryptedReasoning) {
+                try {
+                    const items = JSON.parse(msg.openaiEncryptedReasoning);
+                    if (Array.isArray(items)) {
+                        input.push(...items);
+                    }
+                } catch {
+                    this.logger('Failed to parse stored encrypted reasoning, replaying message without it');
+                }
+            }
+            input.push({ role: msg.role, content: msg.content });
+        }
+        return input;
+    }
+
+    /** The response's reasoning items, JSON-serialized for the caller to store on the message. */
+    private extractReasoningItems(response: any): string | undefined {
+        const items = (response?.output ?? []).filter(
+            (item: any) => item?.type === 'reasoning' && item.encrypted_content
+        );
+        return items.length > 0 ? JSON.stringify(items) : undefined;
     }
 
     /**
@@ -76,9 +123,7 @@ export class Gpt5Agent extends AbstractAgent {
             // `input` as well ("System: ..."), which billed every system token twice: on the
             // werewolf game's first-turn prompt, OpenAI bots measured ~5.1-5.5K input tokens
             // against ~3.2-3.5K for the same prompt on other providers (2026-09-06).
-            const input = this.prepareMessages(messages)
-                .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-                .join('\n\n');
+            const input = this.buildResponsesInput(messages);
 
             // The caller's schema is sent as-is. A `thinking` field used to be appended here when
             // thinking was enabled, and it caused a serious failure mode (measured 2026-09-05):
@@ -103,6 +148,8 @@ export class Gpt5Agent extends AbstractAgent {
                     input: input,
                     max_output_tokens: this.maxOutputTokens,
                     prompt_cache_key: this.promptCacheKey,
+                    // Stateless: encrypted reasoning is only returned for unstored responses.
+                    store: false,
                     ...this.reasoningParams(),
                     text: {
                         format: zodTextFormat(schemaToSend, "response_schema"),
@@ -184,7 +231,7 @@ export class Gpt5Agent extends AbstractAgent {
 
             this.logger(`✅ Response validated successfully with Zod schema`);
 
-            return [response.output_parsed, reasoningContent, tokenUsage];
+            return [response.output_parsed, reasoningContent, tokenUsage, this.extractReasoningItems(response)];
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
             if (error instanceof ModelError) {
@@ -209,9 +256,7 @@ export class Gpt5Agent extends AbstractAgent {
             // `input` as well ("System: ..."), which billed every system token twice: on the
             // werewolf game's first-turn prompt, OpenAI bots measured ~5.1-5.5K input tokens
             // against ~3.2-3.5K for the same prompt on other providers (2026-09-06).
-            const input = this.prepareMessages(messages)
-                .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-                .join('\n\n');
+            const input = this.buildResponsesInput(messages);
 
             const response = await this.client.responses.create({
                 model: this.model,
@@ -219,6 +264,7 @@ export class Gpt5Agent extends AbstractAgent {
                 input: input,
                 max_output_tokens: this.maxOutputTokens,
                 prompt_cache_key: this.promptCacheKey,
+                store: false,
                 ...this.reasoningParams(),
             });
 
@@ -271,7 +317,7 @@ export class Gpt5Agent extends AbstractAgent {
 
             this.logReply(content, "", tokenUsage);
 
-            return [content, "", tokenUsage];
+            return [content, "", tokenUsage, this.extractReasoningItems(response)];
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
             if (error instanceof ModelError) {

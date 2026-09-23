@@ -107,14 +107,30 @@ export class QwenAgent extends AbstractAgent {
         return {
             enable_thinking: this.enableThinking,
             ...(this.enableThinking && budget !== undefined ? { thinking_budget: budget } : {}),
+            // Lets the model read the `reasoning_content` we replay on assistant messages, so a
+            // bot keeps its own train of thought across turns. Qwen documents models as NOT
+            // reading replayed reasoning unless this is set (qwen3.8-max and qwen3.8-flash are
+            // both on the supported list). Measured 2026-09-22: qwen3.8-max actually used the
+            // replayed reasoning with the flag off too, but we follow the documented contract
+            // rather than rely on that. Stateless — the reasoning comes from our payload, not
+            // from any server-side session.
+            ...(this.enableThinking ? { preserve_thinking: true } : {}),
         };
     }
 
+    /**
+     * Assistant turns carry their own `reasoning_content` back so the model can reference what
+     * it was thinking on earlier turns (paired with `preserve_thinking` in thinkingParams).
+     * Qwen's reasoning is PLAIN TEXT, not a signed or encrypted blob, so there is nothing for
+     * another provider to reject: a bot whose model changes mid-game simply stops sending it
+     * and keeps working. The text is the same one the caller already stores as `thinking`.
+     */
     private convertToOpenAIMessages(messages: AIMessage[]): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
         return messages.map(msg => ({
             role: msg.role as 'system' | 'user' | 'assistant',
-            content: msg.content
-        }));
+            content: msg.content,
+            ...(msg.role === 'assistant' && msg.thinking ? { reasoning_content: msg.thinking } : {}),
+        })) as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
     }
 
     private extractThinkingAndUsage(

@@ -16,6 +16,7 @@ export interface AIMessage {
     googleThoughtSignature?: string;  // Signature for Google/Gemini thinking (required for multi-turn)
     grokEncryptedReasoning?: string;  // JSON-serialized xAI encrypted reasoning items (replayed for multi-turn)
     metaEncryptedReasoning?: string;  // JSON-serialized Meta (Muse Spark) encrypted reasoning items (replayed for multi-turn)
+    openaiEncryptedReasoning?: string;  // JSON-serialized OpenAI encrypted reasoning items (replayed for multi-turn; needs store:false)
 }
 
 export interface TokenUsage {

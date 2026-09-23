@@ -995,6 +995,7 @@ export function getProviderSignatureFields(aiType: string, signature?: string): 
     googleThoughtSignature?: string;
     grokEncryptedReasoning?: string;
     metaEncryptedReasoning?: string;
+    openaiEncryptedReasoning?: string;
 } {
     if (!signature) {
         return {};
@@ -1013,6 +1014,12 @@ export function getProviderSignatureFields(aiType: string, signature?: string): 
     // Check if it's an xAI (Grok) model — JSON-serialized encrypted reasoning items
     if (aiType.startsWith('grok')) {
         return { grokEncryptedReasoning: signature };
+    }
+
+    // OpenAI — same shape as Grok's: JSON-serialized reasoning items carrying encrypted_content.
+    // Matches every GPT picker id (gpt-astra, gpt-sol, gpt, gpt-mini).
+    if (aiType.startsWith('gpt')) {
+        return { openaiEncryptedReasoning: signature };
     }
 
     // Meta Muse Spark — same shape as Grok's encrypted reasoning items
