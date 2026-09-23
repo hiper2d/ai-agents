@@ -31,8 +31,12 @@ import type { ReasoningEffort } from './catalog';
  * - Moonshot Kimi K3 (platform.kimi.ai/docs/guide/use-reasoning-effort, 2026-09-22):
  *   low|high|max, default max, top-level on Chat Completions. Moonshot shipped the lower
  *   levels after launch; K3 accepted only "max" when this agent was written.
- * Qwen accepts reasoning_effort but ignores it (thinking_budget is its knob); MiniMax exposes
- * no effort parameter.
+ * - Qwen 3.8 max/flash (docs.qwencloud.com, re-probed 2026-09-22): low|medium|xhigh, default
+ *   xhigh, with `high` and `max` aliased onto xhigh and `minimal` onto low. It is a coarse
+ *   alias for thinking_budget (low = 4,096, medium = 16,384, xhigh = 262,144 tokens) and the
+ *   two are mutually exclusive — sending both is a 400. QwenAgent sends the budget instead,
+ *   because 1,024 is tighter than the lowest level effort can express.
+ * MiniMax exposes no effort parameter.
  */
 export type OpenAIReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 export type AnthropicReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';

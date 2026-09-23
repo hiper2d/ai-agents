@@ -86,12 +86,21 @@ export class QwenAgent extends AbstractAgent {
      * generation); without it the model thinks at the provider default, and qwen3.8-max's
      * latency then swings 30–100s.
      *
-     * `reasoning_effort` is deliberately NOT sent. Probed live 2026-08-30 on qwen3.8-flash and
-     * qwen3.8-max: every value low..max is accepted, but reasoning length doesn't track it
-     * (max: low → 1,686 reasoning tokens / 44s, high → 226 / 7s, xhigh → 1,102 / 30s), while
-     * thinking_budget bounds it reliably (≤340 at 1024). The docs also call the two mutually
-     * exclusive on qwen3.8-max. So on Qwen the budget IS the effort knob; `reasoningEffort`
-     * on this agent is ignored.
+     * `reasoning_effort` is NOT sent, and the earlier reason recorded here was wrong. The
+     * 2026-08-30 probe concluded "reasoning length doesn't track effort"; it had tested
+     * low/high/max/xhigh, but Qwen only defines low|medium|xhigh and aliases both `high` and
+     * `max` onto `xhigh`. So that probe compared low against xhigh twice and read the noise as
+     * non-monotonicity.
+     *
+     * Re-probed 2026-09-22 with the documented levels, and effort tracks cleanly:
+     *   qwen3.8-max     budget 1024 → 77 reasoning | low 132 | medium 160 | xhigh 422
+     *   qwen3.8-flash   budget 1024 → 86 reasoning | low  87 | medium 251 | xhigh 417
+     *
+     * We still send the budget, for a better reason: the two are mutually exclusive (sending
+     * both is a 400), Qwen documents effort as a coarse alias for a budget (low = 4,096,
+     * medium = 16,384, xhigh = 262,144 tokens), and our 1,024 is tighter than the lowest level
+     * it can express. The budget is the finer AND cheaper knob here, so `reasoningEffort` on
+     * this agent stays ignored — deliberately, not because effort is broken.
      */
     private thinkingParams(): Record<string, unknown> {
         const budget = this.thinkingBudgetTokens;
