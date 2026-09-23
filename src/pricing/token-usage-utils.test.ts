@@ -84,9 +84,16 @@ describe('Token Usage Utils', () => {
     });
 
     describe('calculateCost', () => {
+        // DeepSeek is the worked example here, and it carries live peak-valley pricing: rates
+        // double during UTC 01:00-04:00 and 06:00-10:00 on weekdays. Without a pinned clock
+        // these tests compare a base-rate expectation against a surcharged result and fail for
+        // seven hours a day — which is exactly what broke CI on 2026-09-23 at 01:15 UTC.
+        // 12:00 UTC sits outside both windows whatever the weekday.
+        const OFF_PEAK = Date.UTC(2026, 8, 23, 12, 0, 0);
+
         it('should calculate cost for known models', () => {
             const pricing = MODEL_PRICING['deepseek-flash'];
-            const cost = calculateCost('deepseek-flash', 1_000_000, 500_000);
+            const cost = calculateCost('deepseek-flash', 1_000_000, 500_000, { timestamp: OFF_PEAK });
 
             const expectedCost =
                 (1_000_000 * pricing.inputPrice) / 1_000_000 +
@@ -97,7 +104,7 @@ describe('Token Usage Utils', () => {
 
         it('should calculate cost with cache hits', () => {
             const pricing = MODEL_PRICING['deepseek-flash'];
-            const cost = calculateCost('deepseek-flash', 1_000_000, 500_000, { cacheHitTokens: 500_000 });
+            const cost = calculateCost('deepseek-flash', 1_000_000, 500_000, { cacheHitTokens: 500_000, timestamp: OFF_PEAK });
 
             const expectedCost =
                 (500_000 * pricing.inputPrice) / 1_000_000 +
@@ -232,7 +239,9 @@ describe('Token Usage Utils', () => {
                 }
             };
 
-            const result = extractUsageAndCalculateCost('deepseek-flash', mockResponse);
+            // A model with no peak-valley pricing: this test is about extraction, and
+            // extractUsageAndCalculateCost exposes no timestamp to pin a surcharge window with.
+            const result = extractUsageAndCalculateCost('glm-5.3', mockResponse);
 
             expect(result).not.toBeNull();
             expect(result!.usage).toEqual({
@@ -242,7 +251,7 @@ describe('Token Usage Utils', () => {
                 cacheHitTokens: 200000
             });
 
-            const pricing = MODEL_PRICING['deepseek-flash'];
+            const pricing = MODEL_PRICING['glm-5.3'];
             // Verify cost calculation: 800K uncached + 200K cached + 500K output
             const expectedCost =
                 (800_000 * pricing.inputPrice) / 1_000_000 +
