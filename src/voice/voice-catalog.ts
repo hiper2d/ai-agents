@@ -5,8 +5,9 @@ import type { VoiceProvider } from './types';
 export const VOICE_MODEL_CONSTANTS = {
     OPENAI_TTS: 'gpt-4o-mini-tts',
     OPENAI_STT: 'whisper-1',
-    // ai.google.dev/gemini-api/docs/speech-generation
-    GOOGLE_TTS: 'gemini-3.1-flash-tts-preview',
+    // ai.google.dev/gemini-api/docs/speech-generation — Google's named replacement
+    // for gemini-3.1-flash-tts-preview (2026-09-24: ~6 s vs ~15 s per line, ~4x cheaper)
+    GOOGLE_TTS: 'gemini-3.8-flash-lite-tts',
     // ai.google.dev/gemini-api/docs/transcribe — Interactions API only (see google-stt.ts)
     GOOGLE_STT: 'gemini-3.5-transcribe',
 } as const;
@@ -36,9 +37,9 @@ export interface VoiceModelPricing {
 export const VOICE_MODEL_PRICING: Record<string, VoiceModelPricing> = {
     [VOICE_MODEL_CONSTANTS.OPENAI_TTS]: { pricePerMillionCharacters: 15 },
     [VOICE_MODEL_CONSTANTS.OPENAI_STT]: { pricePerMinute: 0.006 },
-    // Measured 2026-09-05: ~32 audio tokens per second of speech, so a 15-second
-    // line is ~$0.01 — about 3-5x an OpenAI line of the same length.
-    [VOICE_MODEL_CONSTANTS.GOOGLE_TTS]: { textInputPricePerM: 1, audioOutputPricePerM: 20 },
+    // ~32 audio tokens per second of speech, so a 15-second line is ~$0.003.
+    // Google doubles both rates to $1 / $12 on 2027-01-01 — update then.
+    [VOICE_MODEL_CONSTANTS.GOOGLE_TTS]: { textInputPricePerM: 0.5, audioOutputPricePerM: 6 },
     // ~25 audio tokens per second in, ~175 text tokens per minute out: ≈ $0.005/min.
     [VOICE_MODEL_CONSTANTS.GOOGLE_STT]: { audioInputPricePerM: 2, textOutputPricePerM: 12 },
 };

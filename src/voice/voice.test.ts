@@ -1,4 +1,4 @@
-import { buildGoogleTtsPrompt, pcmToWav } from './google-tts';
+import { normalizeTtsStyle, pcmToWav } from './google-tts';
 import { calculateGeminiSttCost, calculateGeminiTtsCost, calculateOpenAiSttCost, calculateOpenAiTtsCost } from './voice-pricing';
 import { createVoiceAgent, VoiceAgentFactory } from './voice-agent-factory';
 import { OpenAiVoiceAgent } from './openai-voice-agent';
@@ -6,26 +6,16 @@ import { GoogleVoiceAgent } from './google-voice-agent';
 import { SUPPORTED_VOICE_PROVIDERS, VOICE_MODEL_CONSTANTS, VOICE_MODEL_PRICING, VOICE_PROVIDER_API_KEY } from './voice-catalog';
 import { API_KEY_CONSTANTS } from '../catalog';
 
-describe('buildGoogleTtsPrompt', () => {
-    const line = 'The werewolf hides among the villagers.';
-
-    it('returns the line untouched without a style', () => {
-        expect(buildGoogleTtsPrompt(line)).toBe(line);
-        expect(buildGoogleTtsPrompt(line, '   ')).toBe(line);
+describe('normalizeTtsStyle', () => {
+    it('treats a blank style as none', () => {
+        expect(normalizeTtsStyle()).toBeUndefined();
+        expect(normalizeTtsStyle('   ')).toBeUndefined();
     });
 
-    it('turns a short style into the documented "Say X:" prefix', () => {
-        expect(buildGoogleTtsPrompt(line, 'mysteriously')).toBe(`Say mysteriously: ${line}`);
-        expect(buildGoogleTtsPrompt(line, 'warmly and slowly')).toBe(`Say warmly and slowly: ${line}`);
-    });
-
-    it('uses a longer direction as written, separated from the line by a colon', () => {
-        expect(buildGoogleTtsPrompt(line, 'Speak like a tired old sailor, slow and gravelly.'))
-            .toBe(`Speak like a tired old sailor, slow and gravelly:\n${line}`);
-    });
-
-    it('does not double a trailing colon', () => {
-        expect(buildGoogleTtsPrompt(line, 'Whisper this:')).toBe(`Say Whisper this: ${line}`);
+    it('trims whitespace and trailing punctuation, keeping the direction itself', () => {
+        expect(normalizeTtsStyle(' mysteriously ')).toBe('mysteriously');
+        expect(normalizeTtsStyle('Speak like a tired old sailor, slow and gravelly.')).toBe('Speak like a tired old sailor, slow and gravelly');
+        expect(normalizeTtsStyle('Whisper this:')).toBe('Whisper this');
     });
 });
 
@@ -48,9 +38,9 @@ describe('voice pricing', () => {
     });
 
     it('Gemini TTS: text in and audio out at their own rates', () => {
-        expect(calculateGeminiTtsCost({ inputTokens: 1_000_000, outputTokens: 0 })).toBeCloseTo(1, 10);
-        expect(calculateGeminiTtsCost({ inputTokens: 0, outputTokens: 1_000_000 })).toBeCloseTo(20, 10);
-        expect(calculateGeminiTtsCost({ inputTokens: 18, outputTokens: 285 })).toBeCloseTo(0.000018 + 0.0057, 10);
+        expect(calculateGeminiTtsCost({ inputTokens: 1_000_000, outputTokens: 0 })).toBeCloseTo(0.5, 10);
+        expect(calculateGeminiTtsCost({ inputTokens: 0, outputTokens: 1_000_000 })).toBeCloseTo(6, 10);
+        expect(calculateGeminiTtsCost({ inputTokens: 18, outputTokens: 285 })).toBeCloseTo(0.000009 + 0.00171, 10);
         expect(calculateGeminiTtsCost({ inputTokens: -5, outputTokens: NaN })).toBe(0);
     });
 
@@ -76,7 +66,7 @@ describe('VoiceAgentFactory', () => {
 
         const google = VoiceAgentFactory.createAgent('google', 'k');
         expect(google).toBeInstanceOf(GoogleVoiceAgent);
-        expect(google.ttsModel).toBe('gemini-3.1-flash-tts-preview');
+        expect(google.ttsModel).toBe('gemini-3.8-flash-lite-tts');
         expect(google.sttModel).toBe('gemini-3.5-transcribe');
     });
 

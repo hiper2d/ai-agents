@@ -4,7 +4,7 @@ import { VOICE_MODEL_CONSTANTS } from './voice-catalog';
 export interface GoogleTtsAudioOptions {
     /** e.g. "Kore", "Puck" */
     voiceName: string;
-    /** "mysteriously", "excitedly", or a longer direction */
+    /** "mysteriously", "excitedly", or a longer direction; sent as speechMetadata.style */
     voiceStyle?: string;
 }
 
@@ -17,24 +17,23 @@ export interface GoogleTtsResult {
     styleDropped?: boolean;
 }
 
-// Gemini reports ~32 audio tokens per second of speech (measured 2026-09-05:
-// 267-304 tokens for 8-10 s). Used only when a response carries no usage.
+// Gemini reports ~32 audio tokens per second of speech (measured 2026-09-05 on
+// 3.1 and 2026-09-24 on 3.8 Flash-Lite: 560 tokens for 17.6 s). Used only when a
+// response carries no usage.
 const AUDIO_TOKENS_PER_SECOND = 32;
 const SAMPLE_RATE = 24000;
 const PCM_BYTES_PER_SECOND = SAMPLE_RATE * 2;
+const WAV_HEADER_BYTES = 44;
 
 /**
- * Gemini TTS has no instruction field: delivery is directed in the text itself
- * ("Say cheerfully: Have a wonderful day!" in the docs). A short style (1-3
- * words) becomes that "Say X:" prefix; a longer direction is used as written,
- * ending in the colon that separates it from the line to read. The same style
- * value feeds OpenAI's `instructions`, so one field serves both providers.
+ * Gemini 3.8 TTS reads the part text as a verbatim transcript: an inline
+ * "Say cheerfully:" prefix (the 3.1 convention) may be spoken aloud. Delivery
+ * direction goes in the part's `speechMetadata.style` instead, short adverb or
+ * longer sentence alike. Trailing punctuation is trimmed; blank means none.
  */
-export function buildGoogleTtsPrompt(text: string, voiceStyle?: string): string {
+export function normalizeTtsStyle(voiceStyle?: string): string | undefined {
     const style = voiceStyle?.trim().replace(/[:.!,;\s]+$/, '');
-    if (!style) return text;
-    const isShort = style.split(/\s+/).length <= 3 && !/[.!?,;]/.test(style);
-    return isShort ? `Say ${style}: ${text}` : `${style}:\n${text}`;
+    return style || undefined;
 }
 
 /** Wraps raw 16-bit mono PCM in a WAV header. */
@@ -89,30 +88,31 @@ export function describeEmptyTtsResponse(response: any): string {
 }
 
 /**
- * A safety block on the prompt or the candidate. Gemini TTS false-positives on
- * some delivery directions: "Say quietly: <harmless line>" was blocked 4 of 6
- * times on 2026-09-24 while the same lines without the style passed 6 of 6.
+ * A safety block on the prompt or the candidate. The 3.1 preview model
+ * false-positived on volume directions ("Say quietly: <harmless line>" blocked
+ * 4 of 6 on 2026-09-24); 3.8 Flash-Lite with the style in speechMetadata passed
+ * the same lines 9 of 9, but the fallback below stays as a net.
  */
 export function isSafetyBlocked(response: any): boolean {
     const finish = response?.candidates?.[0]?.finishReason;
     return finish === 'SAFETY' || finish === 'PROHIBITED_CONTENT' || !!response?.promptFeedback?.blockReason;
 }
 
-function findAudioData(response: any): string | undefined {
+function findAudioPart(response: any): { data: string; mimeType: string } | undefined {
     const parts: any[] = response?.candidates?.[0]?.content?.parts ?? [];
-    return parts.find(part => part.inlineData?.mimeType?.startsWith('audio/'))?.inlineData?.data;
+    const inline = parts.find(part => part.inlineData?.mimeType?.startsWith('audio/') && part.inlineData?.data)?.inlineData;
+    return inline ? { data: inline.data, mimeType: inline.mimeType } : undefined;
 }
 
 /**
  * Core Gemini TTS call: text + API key in, WAV + token usage out.
  *
- * Uses generateContent rather than the newer Interactions API the docs show:
- * both serve the 3.1 TTS model (verified 2026-09-05), and this one is typed in
- * the SDK and reports usageMetadata, which billing needs.
+ * 3.8 TTS returns WAV with a RIFF header by default (3.1 returned headerless
+ * audio/l16); raw PCM is still wrapped if a response ever carries it.
  *
  * When a styled request comes back safety-blocked, the line is read once more
- * without the style: the block is on the direction, not the words, and a line
- * in the default delivery beats silence. An unstyled block is not repeated.
+ * without the style: a block on the direction should not silence the line. An
+ * unstyled block is not repeated.
  */
 export async function generateGoogleTtsAudio(
     text: string,
@@ -120,30 +120,36 @@ export async function generateGoogleTtsAudio(
     options: GoogleTtsAudioOptions
 ): Promise<GoogleTtsResult> {
     const client = new GoogleGenAI({ apiKey });
-    const request = (voiceStyle?: string) => client.models.generateContent({
+    const request = (style?: string) => client.models.generateContent({
         model: VOICE_MODEL_CONSTANTS.GOOGLE_TTS,
-        contents: [{ parts: [{ text: buildGoogleTtsPrompt(text, voiceStyle) }] }],
+        contents: [{ parts: [style ? { text, speechMetadata: { style } } : { text }] }],
         config: {
             responseModalities: ['AUDIO'],
             speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: options.voiceName } } },
-        } as any,
+        },
     }) as Promise<any>;
 
-    let response = await request(options.voiceStyle);
+    const style = normalizeTtsStyle(options.voiceStyle);
+    let response = await request(style);
     let styleDropped = false;
     // A blocked call can still report prompt tokens; carry them into the bill.
     let blockedInputTokens = 0;
-    if (!findAudioData(response) && options.voiceStyle?.trim() && isSafetyBlocked(response)) {
+    if (!findAudioPart(response) && style && isSafetyBlocked(response)) {
         blockedInputTokens = response?.usageMetadata?.promptTokenCount ?? 0;
         response = await request(undefined);
         styleDropped = true;
     }
 
-    const audioData = findAudioData(response);
-    if (!audioData) {
+    const audioPart = findAudioPart(response);
+    if (!audioPart) {
         throw new Error(`No audio data in Google TTS response (${describeEmptyTtsResponse(response)}${styleDropped ? ', also without the style' : ''})`);
     }
-    const pcmData = new Uint8Array(Buffer.from(audioData, 'base64'));
+    const bytes = new Uint8Array(Buffer.from(audioPart.data, 'base64'));
+    const isWav = /^audio\/(x-)?wav/i.test(audioPart.mimeType);
+    const audio = isWav
+        ? bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+        : pcmToWav(bytes);
+    const pcmBytes = isWav ? Math.max(0, bytes.length - WAV_HEADER_BYTES) : bytes.length;
 
     // Audio tokens are the candidates count; if absent, estimate from the audio
     // length rather than bill zero.
@@ -152,10 +158,10 @@ export async function generateGoogleTtsAudio(
     const reportedOutput: number | undefined = usageMetadata.candidatesTokenCount;
     const outputTokens = reportedOutput && reportedOutput > 0
         ? reportedOutput
-        : Math.ceil((pcmData.length / PCM_BYTES_PER_SECOND) * AUDIO_TOKENS_PER_SECOND);
+        : Math.ceil((pcmBytes / PCM_BYTES_PER_SECOND) * AUDIO_TOKENS_PER_SECOND);
 
     return {
-        audio: pcmToWav(pcmData),
+        audio,
         usage: { inputTokens, outputTokens },
         ...(styleDropped ? { styleDropped } : {}),
     };

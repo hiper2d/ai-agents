@@ -18,7 +18,7 @@ export { generateOpenAiTtsAudio } from './openai-tts';
 export type { OpenAiTtsVoice, OpenAiTtsAudioOptions } from './openai-tts';
 export { transcribeWithOpenAi } from './openai-stt';
 export type { OpenAiSttOptions, OpenAiSttResult } from './openai-stt';
-export { generateGoogleTtsAudio, buildGoogleTtsPrompt, pcmToWav, describeEmptyTtsResponse } from './google-tts';
+export { generateGoogleTtsAudio, normalizeTtsStyle, isSafetyBlocked, pcmToWav, describeEmptyTtsResponse } from './google-tts';
 export type { GoogleTtsAudioOptions, GoogleTtsResult } from './google-tts';
 export { transcribeWithGemini, GEMINI_AUDIO_TOKENS_PER_SECOND } from './google-stt';
 export type { GoogleSttOptions, GoogleSttResult } from './google-stt';

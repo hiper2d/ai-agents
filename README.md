@@ -69,10 +69,10 @@ const { audio, costUSD } = await voice.speak({ text: 'Night falls.', voice: 'Kor
 const { text } = await voice.transcribe({ audio: recording, mimeType: 'audio/webm' });
 ```
 
-`openai` runs gpt-4o-mini-tts + Whisper, `google` runs Gemini 3.1 Flash TTS + Gemini 3.5
+`openai` runs gpt-4o-mini-tts + Whisper, `google` runs Gemini 3.8 Flash-Lite TTS + Gemini 3.5
 Transcribe (`VOICE_MODEL_CONSTANTS`, prices in `VOICE_MODEL_PRICING`). The `voiceStyle`
-direction works for both providers: OpenAI takes it as instructions, Gemini gets it folded
-into the prompt ("Say gravely: …").
+direction works for both providers: OpenAI takes it as instructions, Gemini as the part's
+`speechMetadata.style` (3.8 TTS reads the text verbatim, so no inline "Say X:" prefix).
 
 ### Images and portrait sheets (`@hiper2d/ai-agents/images`)
 

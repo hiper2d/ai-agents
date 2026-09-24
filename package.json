@@ -1,6 +1,6 @@
 {
   "name": "@hiper2d/ai-agents",
-  "version": "0.15.1",
+  "version": "0.16.0",
   "description": "Multi-provider AI agent layer: schema-validated asks, thinking extraction, a model catalog with per-model tuning defaults, token cost accounting for 12 LLM providers, voice agents (TTS/STT) for OpenAI and Gemini, per-subject spend budgets, and (via ./images) Gemini image generation with cast portrait sheets.",
   "license": "MIT",
   "author": "hiper2d",
@@ -67,7 +67,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.60.0",
-    "@google/genai": "^2.15.0",
+    "@google/genai": "^2.24.0",
     "@mistralai/mistralai": "^1.10.0",
     "openai": "5.20.3",
     "zod-to-json-schema": "^3.24.6"
