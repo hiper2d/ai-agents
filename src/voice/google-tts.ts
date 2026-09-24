@@ -13,6 +13,8 @@ export interface GoogleTtsResult {
     audio: ArrayBuffer;
     /** text prompt tokens / audio tokens — what Gemini bills */
     usage: { inputTokens: number; outputTokens: number };
+    /** True when the styled request was safety-blocked and the line was read without its style. */
+    styleDropped?: boolean;
 }
 
 // Gemini reports ~32 audio tokens per second of speech (measured 2026-09-05:
@@ -87,11 +89,30 @@ export function describeEmptyTtsResponse(response: any): string {
 }
 
 /**
+ * A safety block on the prompt or the candidate. Gemini TTS false-positives on
+ * some delivery directions: "Say quietly: <harmless line>" was blocked 4 of 6
+ * times on 2026-09-24 while the same lines without the style passed 6 of 6.
+ */
+export function isSafetyBlocked(response: any): boolean {
+    const finish = response?.candidates?.[0]?.finishReason;
+    return finish === 'SAFETY' || finish === 'PROHIBITED_CONTENT' || !!response?.promptFeedback?.blockReason;
+}
+
+function findAudioData(response: any): string | undefined {
+    const parts: any[] = response?.candidates?.[0]?.content?.parts ?? [];
+    return parts.find(part => part.inlineData?.mimeType?.startsWith('audio/'))?.inlineData?.data;
+}
+
+/**
  * Core Gemini TTS call: text + API key in, WAV + token usage out.
  *
  * Uses generateContent rather than the newer Interactions API the docs show:
  * both serve the 3.1 TTS model (verified 2026-09-05), and this one is typed in
  * the SDK and reports usageMetadata, which billing needs.
+ *
+ * When a styled request comes back safety-blocked, the line is read once more
+ * without the style: the block is on the direction, not the words, and a line
+ * in the default delivery beats silence. An unstyled block is not repeated.
  */
 export async function generateGoogleTtsAudio(
     text: string,
@@ -99,31 +120,43 @@ export async function generateGoogleTtsAudio(
     options: GoogleTtsAudioOptions
 ): Promise<GoogleTtsResult> {
     const client = new GoogleGenAI({ apiKey });
-    const response = await client.models.generateContent({
+    const request = (voiceStyle?: string) => client.models.generateContent({
         model: VOICE_MODEL_CONSTANTS.GOOGLE_TTS,
-        contents: [{ parts: [{ text: buildGoogleTtsPrompt(text, options.voiceStyle) }] }],
+        contents: [{ parts: [{ text: buildGoogleTtsPrompt(text, voiceStyle) }] }],
         config: {
             responseModalities: ['AUDIO'],
             speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: options.voiceName } } },
         } as any,
-    });
+    }) as Promise<any>;
 
-    const candidate = (response as any).candidates?.[0];
-    const parts: any[] = candidate?.content?.parts ?? [];
-    const audioPart = parts.find(part => part.inlineData?.mimeType?.startsWith('audio/'));
-    if (!audioPart?.inlineData?.data) {
-        throw new Error(`No audio data in Google TTS response (${describeEmptyTtsResponse(response)})`);
+    let response = await request(options.voiceStyle);
+    let styleDropped = false;
+    // A blocked call can still report prompt tokens; carry them into the bill.
+    let blockedInputTokens = 0;
+    if (!findAudioData(response) && options.voiceStyle?.trim() && isSafetyBlocked(response)) {
+        blockedInputTokens = response?.usageMetadata?.promptTokenCount ?? 0;
+        response = await request(undefined);
+        styleDropped = true;
     }
-    const pcmData = new Uint8Array(Buffer.from(audioPart.inlineData.data as string, 'base64'));
+
+    const audioData = findAudioData(response);
+    if (!audioData) {
+        throw new Error(`No audio data in Google TTS response (${describeEmptyTtsResponse(response)}${styleDropped ? ', also without the style' : ''})`);
+    }
+    const pcmData = new Uint8Array(Buffer.from(audioData, 'base64'));
 
     // Audio tokens are the candidates count; if absent, estimate from the audio
     // length rather than bill zero.
-    const usageMetadata = (response as any).usageMetadata ?? {};
-    const inputTokens: number = usageMetadata.promptTokenCount ?? 0;
+    const usageMetadata = response.usageMetadata ?? {};
+    const inputTokens: number = (usageMetadata.promptTokenCount ?? 0) + blockedInputTokens;
     const reportedOutput: number | undefined = usageMetadata.candidatesTokenCount;
     const outputTokens = reportedOutput && reportedOutput > 0
         ? reportedOutput
         : Math.ceil((pcmData.length / PCM_BYTES_PER_SECOND) * AUDIO_TOKENS_PER_SECOND);
 
-    return { audio: pcmToWav(pcmData), usage: { inputTokens, outputTokens } };
+    return {
+        audio: pcmToWav(pcmData),
+        usage: { inputTokens, outputTokens },
+        ...(styleDropped ? { styleDropped } : {}),
+    };
 }

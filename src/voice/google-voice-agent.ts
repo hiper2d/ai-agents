@@ -13,11 +13,11 @@ export class GoogleVoiceAgent implements VoiceAgent {
     constructor(private readonly apiKey: string) {}
 
     async speak(request: SpeechRequest): Promise<SpeechResult> {
-        const { audio, usage } = await generateGoogleTtsAudio(request.text, this.apiKey, {
+        const { audio, usage, styleDropped } = await generateGoogleTtsAudio(request.text, this.apiKey, {
             voiceName: request.voice,
             voiceStyle: request.voiceStyle,
         });
-        return { audio, costUSD: calculateGeminiTtsCost(usage), usage };
+        return { audio, costUSD: calculateGeminiTtsCost(usage), usage, ...(styleDropped ? { styleDropped } : {}) };
     }
 
     async transcribe(request: TranscriptionRequest): Promise<TranscriptionResult> {

@@ -30,6 +30,8 @@ export interface SpeechResult {
     audio: ArrayBuffer;
     costUSD: number;
     usage: SpeechUsage;
+    /** Gemini only: the styled request was safety-blocked, so the line was read without its style. */
+    styleDropped?: boolean;
 }
 
 export interface TranscriptionRequest {
