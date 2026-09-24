@@ -396,10 +396,15 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         tags: ['cheap'],
     },
 
-    // Sakana Fugu models — OpenAI-compatible. They reason internally (and bill it as
-    // "orchestration" tokens), but never surface reasoning to us: responses come back with
-    // reasoning_tokens: 0 and no reasoning_content. So hasThinking is false — there's no
-    // thinking content to show and no user-facing thinking toggle. Single entry per model.
+    // Sakana Fugu models — OpenAI-compatible. They reason internally, but Chat Completions
+    // (what FuguAgent uses) never returns the text: reasoning_tokens are reported and billed,
+    // there is no reasoning_content. So hasThinking is false. Single entry per model.
+    // The Messages and Responses APIs DO return reasoning (thinking blocks with an empty
+    // signature / reasoning items, some with encrypted_content), but probed 2026-09-24 on
+    // fugu-max it isn't worth switching for, since we keep reasoning only to replay it: the
+    // returned text is often a vague status summary or empty rather than the actual
+    // reasoning, and replayed reasoning reaches the model distorted (a planted "4817" came
+    // back as "4829" on both APIs, presumably rewritten by the orchestrator).
     //
     // Base `fugu` was RETIRED 2026-08-04. It was carried as a cheap everyday option at an
     // assumed $1/$3, but reconciling token logs against the Sakana balance showed it actually
