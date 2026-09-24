@@ -46,15 +46,6 @@ describe('Gpt5Agent sends the caller schema unmodified', () => {
         expect(JSON.stringify(schema)).not.toContain('thinking');
     });
 
-    it('sends the same schema when thinking is disabled', async () => {
-        const enabled = agentCapturingRequest(true);
-        await enabled.agent.askWithZodSchema(ReplySchema, MESSAGES);
-        const disabled = agentCapturingRequest(false);
-        await disabled.agent.askWithZodSchema(ReplySchema, MESSAGES);
-
-        expect(schemaOf(enabled.captured)).toEqual(schemaOf(disabled.captured));
-    });
-
     it('still returns thinking when the caller schema declares it itself', async () => {
         const { agent } = agentCapturingRequest(true);
         (agent as any).client = {

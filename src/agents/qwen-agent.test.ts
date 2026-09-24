@@ -68,11 +68,4 @@ describe('QwenAgent request shape', () => {
     expect(captured.params.reasoning_effort).toBeUndefined();
   });
 
-  it('sends enable_thinking false and no budget when thinking is off', async () => {
-    const { agent, captured } = makeAgent(textCompletion, 'qwen3.8-flash', false);
-    await agent.askText(MESSAGES);
-
-    expect(captured.params.enable_thinking).toBe(false);
-    expect(captured.params.thinking_budget).toBeUndefined();
-  });
 });

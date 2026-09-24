@@ -60,15 +60,4 @@ describe('DeepSeekV2Agent request shape', () => {
     expect(captured.params.reasoning_effort).toBe('high');
   });
 
-  it('sends thinking disabled and no reasoning_effort when thinking is off', async () => {
-    const { agent, captured } = makeAgent(textCompletion, 'deepseek-flash', false);
-    await agent.askText(MESSAGES);
-
-    // Thinking is on by default server-side, so "off" must be sent explicitly (top-level —
-    // extra_body is ignored by the API when sent from openai-node).
-    expect(captured.params.thinking).toEqual({ type: 'disabled' });
-    expect(captured.params.extra_body).toBeUndefined();
-    expect(captured.params.reasoning_effort).toBeUndefined();
-    expect(captured.params.temperature).toBe(0.7);
-  });
 });

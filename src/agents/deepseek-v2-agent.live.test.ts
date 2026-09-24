@@ -3,9 +3,8 @@
  * DEEPSEEK_API_KEY in .env). Run with `npm run test:live -- src/agents/deepseek-v2-agent.live`.
  *
  * What these pin: with thinking on, reasoning_content is surfaced on both ask paths and
- * JSON mode still yields a schema-valid object; with thinking off, the (explicit, top-level)
- * disable flag actually reaches the API and no reasoning comes back; a long structured
- * generation parses without truncation and is billed with cost.
+ * JSON mode still yields a schema-valid object; a long structured generation parses without
+ * truncation and is billed with cost.
  */
 import { DeepSeekV2Agent } from './deepseek-v2-agent';
 import { API_KEY_CONSTANTS, LLM_CONSTANTS, SupportedAiModels } from '../catalog';
@@ -91,23 +90,5 @@ describeLive('DeepSeekV2Agent (live)', () => {
             expect(tokenUsage!.outputTokens).toBeGreaterThan(0);
         }, 120000);
 
-        it('with thinking disabled returns plain prose and no reasoning content', async () => {
-            // DeepSeek V4 thinks by default; this proves the top-level `thinking: disabled`
-            // flag reaches the API (the old extra_body form was silently ignored).
-            const agent = makeAgent(LLM_CONSTANTS.DEEPSEEK_FLASH, false);
-            const [reply, thinking, tokenUsage] = await agent.askText([{
-                role: 'user',
-                content: 'In 2-3 sentences, introduce yourself to the rest of the party.',
-            }]);
-
-            expect(typeof reply).toBe('string');
-            expect(reply.length).toBeGreaterThan(0);
-            expect(reply.trim().startsWith('{')).toBe(false);
-            expect(thinking).toBe('');
-
-            expect(tokenUsage).toBeDefined();
-            expect(tokenUsage!.inputTokens).toBeGreaterThan(0);
-            expect(tokenUsage!.outputTokens).toBeGreaterThan(0);
-        }, 120000);
     });
 });

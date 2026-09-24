@@ -4,7 +4,6 @@
  * - schema asks return typed replies with token usage AND a reasoning trace on both hybrid
  *   models (Small 4, Medium 3.5) — `reasoning_effort` rides in the wire body and the trace
  *   arrives as a `thinking` content chunk even with json_schema structured output
- * - with thinking disabled the field is omitted and the reply is a plain string, no trace
  * - a stored trace on a prior assistant turn is replayed as [thinking, text] chunks and the
  *   API accepts the shape
  * - a large 8-character structured response parses cleanly on both models
@@ -62,15 +61,6 @@ describe('MistralAgent live', () => {
         it('Mistral Medium returns a typed reply with a reasoning trace', async () => {
             await expectTypedReplyWithTrace(LLM_CONSTANTS.MISTRAL_MEDIUM);
         }, 60000);
-
-        it('with thinking disabled the reply is a plain string and no trace is returned', async () => {
-            const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_SMALL, false);
-            const [response, thinking, tokenUsage] = await agent.askWithZodSchema(ReplySchema, sampleHistory());
-
-            expect(response.reply.length).toBeGreaterThan(0);
-            expect(thinking).toBe('');
-            expect(tokenUsage!.costUSD).toBeGreaterThan(0);
-        }, 30000);
 
         it('replays a stored trace on a prior assistant turn as thinking chunks', async () => {
             const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_SMALL);

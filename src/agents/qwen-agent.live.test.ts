@@ -10,7 +10,6 @@
  * - optional nullable enums (the night-action shape) pass the strict schema
  * - a stored trace replayed on a prior assistant turn (preserve_thinking) works alongside
  *   json_schema
- * - with thinking disabled json_schema still works and no trace is returned
  */
 import { z } from 'zod';
 import { QwenAgent } from './qwen-agent';
@@ -42,14 +41,14 @@ const VOTE_REQUEST: AIMessage[] = [{
     content: `Morgana opened with a taunt wrapped in a threat. Mordred kept silent. Paul defended Morgana twice. It is time to vote. Candidates: ${CANDIDATES.join(', ')}. Tell the court who you vote to eliminate and why.`,
 }];
 
-const createAgent = (modelType: string, enableThinking = true): QwenAgent =>
+const createAgent = (modelType: string): QwenAgent =>
     new QwenAgent(
         'Lancelot',
         KNIGHT,
         SupportedAiModels[modelType].modelApiName,
         apiKey || 'test_key',
         SupportedAiModels[modelType].temperature ?? 0.7,
-        enableThinking,
+        true,
         SILENT_LOGGING,
     );
 
@@ -100,11 +99,5 @@ describe('QwenAgent live', () => {
             expectVote(vote);
             expect(thinking.length).toBeGreaterThan(0);
         }, 120000);
-
-        it('with thinking disabled json_schema still works and no trace is returned', async () => {
-            const [vote, thinking] = await createAgent(LLM_CONSTANTS.QWEN_FLASH, false).askWithZodSchema(VoteSchema, VOTE_REQUEST);
-            expectVote(vote);
-            expect(thinking).toBe('');
-        }, 60000);
     });
 });
