@@ -1,0 +1,129 @@
+name: threatcrush security scan
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan for credentials and vulnerable patterns
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "20"
+
+      - name: Install ThreatCrush
+        env:
+          TC_SPEC: "@profullstack/threatcrush@0.11.9"
+          TC_INTEGRITY: "sha512-ZjIYeGPBNIcD2LjanW8pv8NiPclI8IZCaY/8su2vusYklQUROguSusJe+nhoQDLMSGhNM7d/kNJn6snEZrvL9g=="
+        run: |
+          set -euo pipefail
+
+          name=""
+          for attempt in 1 2 3; do
+            if name=$(npm pack --silent --pack-destination "${RUNNER_TEMP}" "${TC_SPEC}" | tail -1) \
+              && [ -n "${name}" ] && [ -f "${RUNNER_TEMP}/${name}" ]; then
+              break
+            fi
+            name=""
+            delay=$((attempt * 10))
+            echo "::warning::ThreatCrush download attempt ${attempt}/3 failed; retrying in ${delay}s"
+            sleep "${delay}"
+          done
+          if [ -z "${name}" ]; then
+            echo "::error::ThreatCrush download failed after 3 attempts"
+            exit 1
+          fi
+          tarball="${RUNNER_TEMP}/${name}"
+
+          got="sha512-$(openssl dgst -sha512 -binary "${tarball}" | openssl base64 -A)"
+          if [ "${got}" != "${TC_INTEGRITY}" ]; then
+            echo "::error::integrity mismatch for ${TC_SPEC}"
+            echo "expected ${TC_INTEGRITY}"
+            echo "got      ${got}"
+            exit 1
+          fi
+
+          npm install -g --ignore-scripts "${tarball}"
+          threatcrush --version
+
+      - name: Scan
+        id: scan
+        run: |
+          set -euo pipefail
+          code=0
+          threatcrush scan . --format sarif --output threatcrush.sarif || code=$?
+
+          if [ ! -s threatcrush.sarif ]; then
+            echo "status=error" >> "$GITHUB_OUTPUT"
+            echo "::error::ThreatCrush produced no SARIF (exit ${code}) — this diff was NOT scanned"
+            exit 1
+          fi
+          if [ "${code}" -ne 0 ]; then
+            echo "status=error" >> "$GITHUB_OUTPUT"
+            echo "::error::ThreatCrush scan failed with exit ${code} — results may be incomplete"
+            exit "${code}"
+          fi
+          echo "status=ok" >> "$GITHUB_OUTPUT"
+
+      - name: Summarise findings
+        if: always()
+        env:
+          SCAN_STATUS: ${{ steps.scan.outputs.status }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import os
+
+          levels = {"error": "HIGH/CRITICAL", "warning": "MEDIUM", "note": "LOW"}
+
+          def location(result):
+              physical = (result.get("locations") or [{}])[0].get("physicalLocation", {})
+              uri = physical.get("artifactLocation", {}).get("uri", "")
+              line = physical.get("region", {}).get("startLine", 1)
+              return f"`{uri}`:{line}" if uri else "_(no location)_"
+
+          try:
+              results = json.load(open("threatcrush.sarif"))["runs"][0]["results"]
+          except Exception:
+              results = None
+
+          print("## ThreatCrush security scan\n")
+          if os.environ.get("SCAN_STATUS") != "ok" or results is None:
+              print("**NOT RUN** — the scan did not complete, so this diff was not examined.")
+              print("\nThis is not a clean result. See the job log.")
+          elif not results:
+              print("No findings.")
+          else:
+              counts = {}
+              for result in results:
+                  level = result.get("level", "warning")
+                  counts[level] = counts.get(level, 0) + 1
+              print(f"**{len(results)}** finding(s) — "
+                    + " | ".join(f"{levels.get(key, key)}: {value}" for key, value in counts.items()))
+              print("\n| Severity | Rule | Location |")
+              print("|---|---|---|")
+              for result in results[:50]:
+                  print(f"| {levels.get(result.get('level', 'warning'), 'INFO')} "
+                        f"| `{result.get('ruleId', '?')}` | {location(result)} |")
+              if len(results) > 50:
+                  print(f"\n_…and {len(results) - 50} more; the complete report is in the SARIF artifact._")
+          PY
+
+      - name: Upload SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: threatcrush-sarif
+          path: threatcrush.sarif
+          if-no-files-found: ignore
+          retention-days: 30
