@@ -164,9 +164,14 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         reasoningEffort: 'high',
         tags: ['expensive'],
     },
+    // Sonnet moved 5 → 5.5 on 2026-09-28 (`claude-sonnet-5-5`, verified live with the platform key).
+    // Same price, 1M context / 128K output. Adaptive thinking, API default effort `high` (effort
+    // levels were recalibrated vs Sonnet 5 — same pin, not necessarily the same thinking depth).
+    // It rejects `thinking: {type: "disabled"}`; ClaudeAgent sends `between_tools` instead. It
+    // reads Sonnet 5 thinking blocks, so games moving onto it keep the bots' earlier reasoning.
     [LLM_CONSTANTS.CLAUDE_SONNET]: {
-        displayName: 'Claude 5 Sonnet',
-        modelApiName: 'claude-sonnet-5',
+        displayName: 'Claude 5.5 Sonnet',
+        modelApiName: 'claude-sonnet-5-5',
         apiKeyName: API_KEY_CONSTANTS.ANTHROPIC,
         hasThinking: true,
         reasoningEffort: 'high',
@@ -756,6 +761,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         cacheHitPrice: 0.20
     },
     [SupportedAiModels[LLM_CONSTANTS.CLAUDE_SONNET].modelApiName]: {
+        // Sonnet 5.5 (2026-09-28): same $2/$10 and $0.20 cache reads as Sonnet 5.
         inputPrice: 2.0,
         outputPrice: 10.0,
         cacheHitPrice: 0.20
@@ -991,7 +997,7 @@ export function calculateModelCost(
 /**
  * Returns provider-specific signature fields based on the model's API name prefix.
  * Used when storing messages with thinking signatures from different providers.
- * @param aiType - The model API name (e.g. "claude-sonnet-5", "gemini-3.7-flash")
+ * @param aiType - The model API name (e.g. "claude-sonnet-5-5", "gemini-3.7-flash")
  * @param signature - The thinking signature from the API response (may be undefined)
  * @returns Object with appropriate signature fields for the message
  */

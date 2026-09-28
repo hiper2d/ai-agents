@@ -11,7 +11,7 @@ import { BotResponseError, type AIMessage } from '../types';
 const MESSAGES: AIMessage[] = [{ role: 'user', content: 'Say something.' }];
 
 function refusingAgent() {
-    const agent = new ClaudeAgent('Mira', 'instruction', 'claude-sonnet-5', 'key', false, SILENT_LOGGING);
+    const agent = new ClaudeAgent('Mira', 'instruction', 'claude-sonnet-5-5', 'key', false, SILENT_LOGGING);
     (agent as any).client = {
         messages: { create: async () => ({ id: 'msg', stop_reason: 'refusal', content: [], usage: { input_tokens: 10, output_tokens: 0 } }) },
     };
@@ -26,12 +26,12 @@ describe('ClaudeAgent refusal handling', () => {
     it('askWithZodSchema throws ModelRefusalError on stop_reason refusal', async () => {
         const err = await refusingAgent().askWithZodSchema(ReplySchema, MESSAGES).catch(e => e);
         expect(err).toBeInstanceOf(ModelRefusalError);
-        expect(err.modelType).toBe('claude-sonnet-5');
+        expect(err.modelType).toBe('claude-sonnet-5-5');
         expect(err.message).toMatch(/refused/);
     });
 
     it('still reports a plain empty response as the wrapped generic error', async () => {
-        const agent = new ClaudeAgent('Mira', 'instruction', 'claude-sonnet-5', 'key', false, SILENT_LOGGING);
+        const agent = new ClaudeAgent('Mira', 'instruction', 'claude-sonnet-5-5', 'key', false, SILENT_LOGGING);
         (agent as any).client = { messages: { create: async () => ({ id: 'msg', stop_reason: 'end_turn', content: [] }) } };
         const err = await agent.askText(MESSAGES).catch(e => e);
         expect(err).toBeInstanceOf(BotResponseError);

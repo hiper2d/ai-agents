@@ -30,6 +30,14 @@ type CacheTtl = '5m' | '1h';
 const rejectsDisabledThinking = (model: string): boolean =>
     model.includes('fable') || model.includes('opus-5-5');
 
+/**
+ * Sonnet 5.5 (2026-09-28) also rejects `disabled`, but unlike Fable and Opus 5.5 it has a real
+ * off switch: `thinking: {type: "between_tools"}` turns off up-front thinking (only progress
+ * notes between tool calls remain, and we send no tools). It takes no other field and is legal
+ * only at effort <= high, so it goes out without `output_config`.
+ */
+const usesBetweenToolsForOff = (model: string): boolean => model.includes('sonnet-5-5');
+
 interface TextBlock {
     type: 'text';
     text: string;
@@ -328,7 +336,10 @@ export class ClaudeAgent extends AbstractAgent {
                 // adaptive thinking when `thinking` is omitted, so disable it explicitly to keep the
                 // non-thinking variant from reasoning (avoiding extra thinking cost and latency).
                 // Fable and Opus 5.5 refuse the disabled mode outright — leave `thinking` unset.
-                if (!rejectsDisabledThinking(this.model)) {
+                // Sonnet 5.5 refuses it too, but turns thinking off with `between_tools`.
+                if (usesBetweenToolsForOff(this.model)) {
+                    (params as any).thinking = { type: "between_tools" };
+                } else if (!rejectsDisabledThinking(this.model)) {
                     (params as any).thinking = { type: "disabled" };
                 }
             } else {
@@ -470,7 +481,10 @@ export class ClaudeAgent extends AbstractAgent {
                 // Opus 4.8 / Sonnet 5 reject a non-default temperature and default to adaptive
                 // thinking when `thinking` is omitted; disable it explicitly for the non-thinking variant.
                 // Fable and Opus 5.5 refuse the disabled mode outright — leave `thinking` unset.
-                if (!rejectsDisabledThinking(this.model)) {
+                // Sonnet 5.5 refuses it too, but turns thinking off with `between_tools`.
+                if (usesBetweenToolsForOff(this.model)) {
+                    (params as any).thinking = { type: "between_tools" };
+                } else if (!rejectsDisabledThinking(this.model)) {
                     (params as any).thinking = { type: "disabled" };
                 }
             } else {

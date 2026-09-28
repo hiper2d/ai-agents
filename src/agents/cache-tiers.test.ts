@@ -12,6 +12,10 @@ import { DeepSeekV2Agent } from './deepseek-v2-agent';
 import { CACHE_TIER_MARKER } from '../cache-tier';
 import { AIMessage } from '../types';
 import { ASSISTANT_SYSTEM_PROMPT, assistantPrompt } from '../testing/fixtures';
+import { LLM_CONSTANTS, SupportedAiModels } from '../catalog';
+
+// Read from the catalog so a Sonnet version bump doesn't silently zero the pricing assertion.
+const SONNET = SupportedAiModels[LLM_CONSTANTS.CLAUDE_SONNET].modelApiName;
 
 describe('prompt cache tiers', () => {
     it('the fixture prompt keeps all placeholders below the cache tier marker', () => {
@@ -30,7 +34,7 @@ describe('prompt cache tiers', () => {
     });
 
     it('ClaudeAgent emits one cacheable system block per tier', () => {
-        const agent = new ClaudeAgent('Mira', assistantPrompt(), 'claude-sonnet-5', 'test-key');
+        const agent = new ClaudeAgent('Mira', assistantPrompt(), SONNET, 'test-key');
         const system = (agent as any).defaultParams.system;
         expect(system).toHaveLength(2);
         for (const block of system) {
@@ -43,7 +47,7 @@ describe('prompt cache tiers', () => {
     });
 
     it('ClaudeAgent applies cacheTtl to every breakpoint it places', () => {
-        const agent = new ClaudeAgent('Mira', assistantPrompt(), 'claude-sonnet-5', 'test-key');
+        const agent = new ClaudeAgent('Mira', assistantPrompt(), SONNET, 'test-key');
         agent.cacheTtl = '5m';
         for (const block of (agent as any).defaultParams.system) {
             expect(block.cache_control).toEqual({ type: 'ephemeral', ttl: '5m' });
@@ -60,14 +64,14 @@ describe('prompt cache tiers', () => {
     });
 
     it('ClaudeAgent falls back to a single system block for marker-free prompts', () => {
-        const agent = new ClaudeAgent('Narrator', 'You are the narrator.', 'claude-sonnet-5', 'test-key');
+        const agent = new ClaudeAgent('Narrator', 'You are the narrator.', SONNET, 'test-key');
         const system = (agent as any).defaultParams.system;
         expect(system).toHaveLength(1);
         expect(system[0].text).toBe('You are the narrator.');
     });
 
     it('ClaudeAgent anchors the fast breakpoint one position back, not on the tail', () => {
-        const agent = new ClaudeAgent('Mira', 'instruction', 'claude-sonnet-5', 'test-key');
+        const agent = new ClaudeAgent('Mira', 'instruction', SONNET, 'test-key');
         const messages = [
             { role: 'user', content: 'first prompt' },
             { role: 'assistant', content: 'reply' },
@@ -82,7 +86,7 @@ describe('prompt cache tiers', () => {
     });
 
     it('ClaudeAgent reconstructs full prompt size from cache fields and bills hits at the cached rate', () => {
-        const agent = new ClaudeAgent('Mira', 'instruction', 'claude-sonnet-5', 'test-key');
+        const agent = new ClaudeAgent('Mira', 'instruction', SONNET, 'test-key');
         // Anthropic's input_tokens EXCLUDES cached tokens: total prompt = 100 + 4000 + 500.
         const usage = (agent as any).buildTokenUsage({
             input_tokens: 100,
@@ -110,7 +114,7 @@ describe('prompt cache tiers', () => {
         expect(merged).toHaveLength(2);
         expect(merged[1].content).toBe('narrator prompt\n\nreminder');
 
-        const claude = new ClaudeAgent('Mira', 'instruction', 'claude-sonnet-5', 'test-key');
+        const claude = new ClaudeAgent('Mira', 'instruction', SONNET, 'test-key');
         const kept = (claude as any).prepareMessages(history);
         expect(kept).toHaveLength(3);
     });
