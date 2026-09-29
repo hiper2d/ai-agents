@@ -49,7 +49,10 @@ describe('buildPortraitSheetPrompt', () => {
     it('lets a player art style replace the model\'s own choice', () => {
         expect(buildPortraitSheetPrompt(base)).toContain('Choose ONE cohesive illustration style');
         const styled = buildPortraitSheetPrompt({ ...base, artStyle: 'gouache' });
-        expect(styled).toContain('chosen by the player: "gouache"');
+        expect(styled).toContain('chosen by the player — it governs every portrait: "gouache"');
+        expect(styled.startsWith('Art style')).toBe(true);
+        expect(styled.trimEnd().endsWith('Every cell must be fully in this art style: "gouache" — and still carry no names or text of any kind.')).toBe(true);
+        expect(styled).toContain('separated by thin dark divider lines');
         expect(styled).not.toContain('Choose ONE cohesive illustration style');
     });
 });

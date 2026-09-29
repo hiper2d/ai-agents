@@ -238,9 +238,11 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // ($4/$20 → $2/$10) and Luna halved ($0.20/$1.20 → $0.10/$0.50). Note GPT-6 Sol now
     // undercuts GPT-5.6 Terra ($2/$12) on output at the same input rate, which makes the Terra
     // slot largely redundant — retiring it is a product call, not a catalog one.
+    // Sol → GPT-6.1 Sol on 2026-09-29 (id verified against GET /v1/models; gpt-6-sol is still
+    // served). Same price as GPT-6 Sol; its no-param default effort still measures `medium`.
     [LLM_CONSTANTS.GPT_SOL]: {
-        displayName: 'GPT-6 Sol',
-        modelApiName: 'gpt-6-sol',
+        displayName: 'GPT-6.1 Sol',
+        modelApiName: 'gpt-6.1-sol',
         apiKeyName: API_KEY_CONSTANTS.OPENAI,
         reasoningEffort: 'medium',
         hasThinking: true,
@@ -672,6 +674,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     // As with Astra, OpenAI's table doesn't restate the short/long boundary, so we keep the
     // 272k threshold the 5.6 siblings use. Cache WRITES (Sol $2.50/$5, Luna $0.125/$0.25) are
     // not modelled: OpenAI caching is automatic and the API only reports hits.
+    // GPT-6.1 Sol (2026-09-29) kept GPT-6 Sol's rates exactly, cache writes included.
     [SupportedAiModels[LLM_CONSTANTS.GPT_SOL].modelApiName]: {
         inputPrice: 2.000,
         outputPrice: 10.000,

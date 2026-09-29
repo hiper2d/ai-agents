@@ -72,11 +72,20 @@ export function buildPortraitSheetPrompt(spec: PortraitSheetPrompt): string {
         (c, i) => `Cell ${i + 1}: ${c.prompt}. Its own distinct flat solid muted background color.`
     ).join('\n');
 
+    // A player style leads the prompt and is restated at the end: the sheet
+    // framing (grid, bust portraits, flat backgrounds) otherwise pulls the model
+    // toward drawn character-sheet art whatever style was asked for (an
+    // "ultra-realism" game came out as comic portraits). The grid wording stays
+    // intact — it is what the slicer relies on — but is declared layout only.
+    const styleLead = artStyle
+        ? `Art style, chosen by the player — it governs every portrait: "${artStyle}". Each cell must look made in that style: a photographic or cinematic style means real photographs, a painted style means paintings.\n\n`
+        : '';
     const styleLine = artStyle
-        ? `Render every portrait in this art style, chosen by the player: "${artStyle}". Apply it consistently to every portrait: same rendering technique, same palette family, same lighting.`
+        ? `Render every portrait in the player's art style above. Apply it consistently to every portrait: same rendering technique, same palette family, same lighting.`
         : `Choose ONE cohesive illustration style that fits this setting and apply it consistently to every portrait: same rendering technique, same palette family, same lighting.`;
+    const styleTail = artStyle ? `\n\nEvery cell must be fully in this art style: "${artStyle}" — and still carry no names or text of any kind.` : '';
 
-    return `A character portrait sheet for ${purpose}, drawn as a single image: a precise grid of exactly ${cells.length} rectangular cells, ${cols} columns and ${rows} rows, all cells exactly equal size, separated by thin dark divider lines. Each cell contains one bust portrait (head and shoulders) of a different character, centered in its cell.
+    return `${styleLead}A character portrait sheet for ${purpose}, rendered as a single image: a precise grid of exactly ${cells.length} rectangular cells, ${cols} columns and ${rows} rows, all cells exactly equal size, separated by thin dark divider lines. Each cell contains one bust portrait (head and shoulders) of a different character, centered in its cell.
 
 Setting — "${setting.title}": ${setting.description}
 
@@ -84,7 +93,7 @@ ${styleLine} Every face must be distinct and memorable, and match its character 
 
 ${cellLines}
 
-The character descriptions above are guidance for the drawing only — NEVER render them as text. Absolutely no text anywhere in the image: no names, no labels, no captions, no letters, no writing of any kind — and no lettering on clothing, equipment, insignia or logos.`;
+The character descriptions above are guidance for the drawing only — NEVER render them as text. Absolutely no text anywhere in the image: no names, no labels, no captions, no letters, no writing of any kind — and no lettering on clothing, equipment, insignia or logos.${styleTail}`;
 }
 
 // The model returns ~2.4 MB loosely-compressed JPEGs; at this width and quality a

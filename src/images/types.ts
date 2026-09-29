@@ -42,8 +42,9 @@ export interface ImageFocus {
 export const CARD_ASPECT = 3 / 4; // width / height
 export const CARD_WIDTH_PX = 600;
 export const CARD_HEIGHT_PX = 800;
-// Where the circle starts on a freshly cut card: 72% of its width, near the top.
-export const DEFAULT_AVATAR_CIRCLE: AvatarCircle = { x: 0.14, y: 0.03, d: 0.72 };
+// Where the circle starts on a freshly cut card: 86% of its width, centred,
+// near the top — wide enough to take in a chin or beard (0.72 cut them off).
+export const DEFAULT_AVATAR_CIRCLE: AvatarCircle = { x: 0.07, y: 0.02, d: 0.86 };
 // A card narrower than this fraction of the sheet's height upscales too much.
 export const MIN_CARD_HEIGHT_FRACTION = 0.12;
 
