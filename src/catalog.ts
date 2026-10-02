@@ -97,6 +97,14 @@ export const LLM_CONSTANTS = {
  */
 export const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
 
+/**
+ * Wall-clock limit on one ask, retries inside the provider SDK included. Past it the ask
+ * throws ModelTimeoutError. Measured 2026-10-01 over 7k production calls (14 days): 0.5%
+ * ran past 60s — mostly Grok turns and story generation. Callers that legitimately need
+ * longer raise `requestTimeoutMs` on the instance, like maxOutputTokens.
+ */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
+
 // Speed tags graded from live measurements (one identical prompt per model;
 // re-graded 2026-08-04, very-slow tier added 2026-08-05): very-fast < 3s, fast 3-6s,
 // slow 15-25s, very-slow > 25s (the K3 / Qwen Max / MiniMax cluster), extremely-slow = minutes

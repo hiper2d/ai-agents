@@ -117,6 +117,23 @@ export class ModelInvalidResponseError extends ModelError {
  *              Google's non-configurable filter — no safetySettings change lifts it.
  *              `reason` = the blockReason or finishReason string.
  */
+/**
+ * The provider did not answer within the agent's `requestTimeoutMs`. The ask gives up
+ * instead of hanging until the host's serverless function is killed, which leaves no log
+ * line and no error for the player to retry from. Observed 2026-10-01: `deepseek-flash`
+ * accepted requests and never answered (no tokens, even streaming) while `deepseek-v4-pro`
+ * on the same key answered in 0.5s. Retryable — usually on another model.
+ */
+export class ModelTimeoutError extends ModelError {
+    public timeoutMs: number;
+
+    constructor(modelType: string, timeoutMs: number) {
+        super(`${modelType} did not respond within ${Math.round(timeoutMs / 1000)}s`, modelType);
+        this.name = 'ModelTimeoutError';
+        this.timeoutMs = timeoutMs;
+    }
+}
+
 export class ModelRefusalError extends ModelError {
     public reason?: string;
 

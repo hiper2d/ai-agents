@@ -2,7 +2,8 @@ import { AIMessage, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } fro
 import { z } from 'zod';
 import { logger } from "../logger";
 import { CACHE_TIER_MARKER } from "../cache-tier";
-import { DEFAULT_MAX_OUTPUT_TOKENS, getModelConfigByApiName, ReasoningEffort } from "../catalog";
+import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_REQUEST_TIMEOUT_MS, getModelConfigByApiName, ReasoningEffort } from "../catalog";
+import { ModelTimeoutError } from "../errors";
 
 /**
  * Runs before every ask on every LLM agent, with the agent about to call the provider.
@@ -39,6 +40,12 @@ export abstract class AbstractAgent {
      */
     reasoningEffort?: ReasoningEffort;
     thinkingBudgetTokens?: number;
+    /**
+     * Wall-clock limit on one ask (DEFAULT_REQUEST_TIMEOUT_MS). Past it the ask throws
+     * ModelTimeoutError; the provider request is abandoned, not cancelled. Raise it per
+     * instance for calls that legitimately run long, like maxOutputTokens.
+     */
+    requestTimeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS;
     protected readonly instruction: string;
     /**
      * The instruction split on CACHE_TIER_MARKER: [shared static tier, per-bot tier].
@@ -84,7 +91,7 @@ export abstract class AbstractAgent {
         if (beforeAskHook) await beforeAskHook(this);
         const startedAt = Date.now();
         try {
-            const [result, thinking, usage, signature] = await this.doAskWithZodSchema(zodSchema, messages);
+            const [result, thinking, usage, signature] = await this.withTimeout(this.doAskWithZodSchema(zodSchema, messages));
             return [result, thinking, this.stampDuration(usage, startedAt), signature];
         } catch (error) {
             this.stampErrorDuration(error, startedAt);
@@ -96,12 +103,25 @@ export abstract class AbstractAgent {
         if (beforeAskHook) await beforeAskHook(this);
         const startedAt = Date.now();
         try {
-            const [content, thinking, usage, signature] = await this.doAskText(messages);
+            const [content, thinking, usage, signature] = await this.withTimeout(this.doAskText(messages));
             return [content, thinking, this.stampDuration(usage, startedAt), signature];
         } catch (error) {
             this.stampErrorDuration(error, startedAt);
             throw error;
         }
+    }
+
+    /**
+     * Races the provider call against requestTimeoutMs. A hung provider (accepts the request,
+     * never answers) otherwise runs until the host kills the function with no error to show.
+     */
+    private withTimeout<T>(call: Promise<T>): Promise<T> {
+        const timeoutMs = this.requestTimeoutMs;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new ModelTimeoutError(this.model, timeoutMs)), timeoutMs);
+        });
+        return Promise.race([call, timeout]).finally(() => clearTimeout(timer));
     }
 
     private stampDuration(usage: TokenUsage | undefined, startedAt: number): TokenUsage | undefined {
