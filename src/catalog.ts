@@ -67,6 +67,9 @@ export const LLM_CONSTANTS = {
     GEMINI_PRO: 'gemini-pro',
     GEMINI_FLASH: 'gemini-flash',
     GEMINI_LITE: 'gemini-lite',
+    // Reused 2026-10-06 for Mistral Large 4: the old id (Large 3) was retired 2026-09-18 and
+    // consumers had mapped it away, so the version-free id was free again.
+    MISTRAL_LARGE: 'mistral-large',
     MISTRAL_MEDIUM: 'mistral-medium',
     MISTRAL_SMALL: 'mistral-small',
     GROK: 'grok',
@@ -340,6 +343,21 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // returns `mistral-medium-3-5`, `mistral-medium-3`, `mistral-medium-latest` and
     // `magistral-medium-latest` as one entry — so Magistral seats had silently become Medium
     // seats already. Consumers map both retired ids onto the surviving pair.
+    //
+    // Mistral Large 4 added 2026-10-06 under the freed `mistral-large` picker id. The model list
+    // reports reasoning: true (Large 3 said false), 512K context; same reasoning_effort switch,
+    // but only 'high' and 'none' are accepted (medium/low are a 400). Live 2026-10-06 at high:
+    // a chat-turn schema ask took 14-21s with 1.3-2k output tokens (~$0.003), one constrained
+    // pick took 49s — it thinks long, so it is cheap but slow.
+    [LLM_CONSTANTS.MISTRAL_LARGE]: {
+        displayName: 'Mistral Large 4',
+        // `mistral-large-4-0` is the same entry; `mistral-large-latest` still points at Large 3.
+        modelApiName: 'mistral-large-4',
+        apiKeyName: API_KEY_CONSTANTS.MISTRAL,
+        hasThinking: true,
+        reasoningEffort: 'high',
+        tags: ['slow', 'cheap'],
+    },
     [LLM_CONSTANTS.MISTRAL_MEDIUM]: {
         displayName: 'Mistral Medium 3.5',
         // The docs' explicit 3.5 id. It was `mistral-medium-3` until 2026-09-18, which Mistral
@@ -814,7 +832,13 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     // Mistral models (mistral.ai/pricing/api, verified 2026-09-18). Cached tokens bill at 10% of
     // the input price (documented on the prompt_cache_key param; no per-model cached prices
     // published). Reasoning tokens are counted inside completion_tokens — no separate
-    // reasoning_tokens field — so the output rate already covers the trace.
+    // reasoning_tokens field — so the output rate already covers the trace. Large 4 added
+    // 2026-10-06 at its published rates ($0.07 cached, not an exact 10%).
+    [SupportedAiModels[LLM_CONSTANTS.MISTRAL_LARGE].modelApiName]: {
+        inputPrice: 0.68,
+        outputPrice: 2.09,
+        cacheHitPrice: 0.07
+    },
     [SupportedAiModels[LLM_CONSTANTS.MISTRAL_MEDIUM].modelApiName]: {
         inputPrice: 1.5,
         outputPrice: 7.5,
@@ -924,6 +948,7 @@ const HYBRID_THINKING_API_NAMES = new Set([
     SupportedAiModels[LLM_CONSTANTS.MINIMAX].modelApiName,
     // Mistral reasons only when asked (`reasoning_effort`), and we always ask — hybrid by the
     // same definition as Qwen. Added 2026-09-18 when the two entries went thinking-on.
+    SupportedAiModels[LLM_CONSTANTS.MISTRAL_LARGE].modelApiName,
     SupportedAiModels[LLM_CONSTANTS.MISTRAL_MEDIUM].modelApiName,
     SupportedAiModels[LLM_CONSTANTS.MISTRAL_SMALL].modelApiName,
 ]);
