@@ -58,10 +58,6 @@ describe('MistralAgent live', () => {
             await expectTypedReplyWithTrace(LLM_CONSTANTS.MISTRAL_SMALL);
         }, 60000);
 
-        it('Mistral Large returns a typed reply with a reasoning trace', async () => {
-            await expectTypedReplyWithTrace(LLM_CONSTANTS.MISTRAL_LARGE);
-        }, 60000);
-
         it('Mistral Medium returns a typed reply with a reasoning trace', async () => {
             await expectTypedReplyWithTrace(LLM_CONSTANTS.MISTRAL_MEDIUM);
         }, 60000);
@@ -153,11 +149,6 @@ describe('MistralAgent live', () => {
     });
 
     describe('catalog', () => {
-        it('Mistral Large: $0.68 in / $2.09 out per 1M', () => {
-            const apiName = SupportedAiModels[LLM_CONSTANTS.MISTRAL_LARGE].modelApiName;
-            expect(calculateModelCost(apiName, 1_000_000, 1_000_000)).toBeCloseTo(2.77, 2);
-        });
-
         it('Mistral Medium: $1.5 in / $7.5 out per 1M', () => {
             const apiName = SupportedAiModels[LLM_CONSTANTS.MISTRAL_MEDIUM].modelApiName;
             expect(calculateModelCost(apiName, 1_000_000, 1_000_000)).toBeCloseTo(9.0, 2);
@@ -169,7 +160,7 @@ describe('MistralAgent live', () => {
         });
 
         it('every entry is a hybrid thinking model pinned to high effort', () => {
-            for (const id of [LLM_CONSTANTS.MISTRAL_LARGE, LLM_CONSTANTS.MISTRAL_MEDIUM, LLM_CONSTANTS.MISTRAL_SMALL]) {
+            for (const id of [LLM_CONSTANTS.MISTRAL_MEDIUM, LLM_CONSTANTS.MISTRAL_SMALL]) {
                 const config = SupportedAiModels[id];
                 expect(config.hasThinking).toBe(true);
                 expect(config.reasoningEffort).toBe('high');

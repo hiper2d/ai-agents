@@ -58,7 +58,6 @@ export class AgentFactory {
                 return new DeepSeekV2Agent(name, instruction, model.modelApiName, key, model.temperature ?? 0, shouldEnableThinking);
 
             // Mistral models
-            case LLM_CONSTANTS.MISTRAL_LARGE:
             case LLM_CONSTANTS.MISTRAL_MEDIUM:
             case LLM_CONSTANTS.MISTRAL_SMALL:
                 return new MistralAgent(name, instruction, model.modelApiName, key, shouldEnableThinking);
@@ -72,7 +71,6 @@ export class AgentFactory {
                 return new GlmAgent(name, instruction, model.modelApiName, key, model.temperature!, shouldEnableThinking);
 
             // Sakana Fugu models — always-on reasoning, no temperature (ignored by the model)
-            case LLM_CONSTANTS.FUGU_ULTRA:
             case LLM_CONSTANTS.FUGU_MAX:
                 return new FuguAgent(name, instruction, model.modelApiName, key, shouldEnableThinking);
 

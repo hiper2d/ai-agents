@@ -67,16 +67,12 @@ export const LLM_CONSTANTS = {
     GEMINI_PRO: 'gemini-pro',
     GEMINI_FLASH: 'gemini-flash',
     GEMINI_LITE: 'gemini-lite',
-    // Reused 2026-10-06 for Mistral Large 4: the old id (Large 3) was retired 2026-09-18 and
-    // consumers had mapped it away, so the version-free id was free again.
-    MISTRAL_LARGE: 'mistral-large',
     MISTRAL_MEDIUM: 'mistral-medium',
     MISTRAL_SMALL: 'mistral-small',
     GROK: 'grok',
     KIMI: 'kimi',
     GLM: 'glm',
     GLM_FLASH: 'glm-flash',
-    FUGU_ULTRA: 'fugu-ultra',
     FUGU_MAX: 'fugu-max',
     // Qwen (QwenCloud/DashScope). Stable picker ids without the version, matching the gpt/gemini
     // pattern, so future repoints don't orphan persisted ids.
@@ -314,16 +310,20 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     },
     // Always-on reasoning — no non-thinking sibling. Bumped 4.6 → 4.7 on 2026-09-22 (id verified
     // against GET /v1/models). Same price, same 200K extended-context boundary; the context
-    // window is 500K. NOTE 4.7 newly accepts `reasoning_effort` (low | medium | high | xhigh,
-    // default high) where 4.6 had no knob at all. GrokAgent still sends none, so behaviour is
-    // unchanged — but Grok is the app's most expensive model per turn (94% of its output is
-    // reasoning), so a lower pin is the obvious lever to measure before anything else.
+    // window is 500K. 4.7 accepts `reasoning: {effort}` (low | medium | high | xhigh, default
+    // high) where 4.6 had no knob at all; GrokAgent sends the pin below.
+    //
+    // Pinned medium 2026-10-06. At high, production day summaries ran ~2 min and the werewolf
+    // day-2 fixture measured votes 27-55s and summaries 44-55s (1.5-3k output tokens) — too
+    // close to the 60s per-call timeout. At medium the same prompts took votes 5-8s and
+    // summaries 23-25s (3-5x fewer output tokens) with the same vote target and summaries just
+    // as specific.
     [LLM_CONSTANTS.GROK]: {
         displayName: 'Grok 4.7',
         modelApiName: 'grok-4.7',
         apiKeyName: API_KEY_CONSTANTS.GROK,
         hasThinking: true,
-        reasoningEffort: 'high',
+        reasoningEffort: 'medium',
         temperature: 0.7,
     },
 
@@ -344,20 +344,12 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // `magistral-medium-latest` as one entry — so Magistral seats had silently become Medium
     // seats already. Consumers map both retired ids onto the surviving pair.
     //
-    // Mistral Large 4 added 2026-10-06 under the freed `mistral-large` picker id. The model list
-    // reports reasoning: true (Large 3 said false), 512K context; same reasoning_effort switch,
-    // but only 'high' and 'none' are accepted (medium/low are a 400). Live 2026-10-06 at high:
-    // a chat-turn schema ask took 14-21s with 1.3-2k output tokens (~$0.003), one constrained
-    // pick took 49s — it thinks long, so it is cheap but slow.
-    [LLM_CONSTANTS.MISTRAL_LARGE]: {
-        displayName: 'Mistral Large 4',
-        // `mistral-large-4-0` is the same entry; `mistral-large-latest` still points at Large 3.
-        modelApiName: 'mistral-large-4',
-        apiKeyName: API_KEY_CONSTANTS.MISTRAL,
-        hasThinking: true,
-        reasoningEffort: 'high',
-        tags: ['slow', 'cheap'],
-    },
+    // Mistral Large 4 (`mistral-large-4`, $0.68/$2.09, $0.07 cached) was added in 0.19.0 and
+    // removed in 0.19.1 (2026-10-06/07): too slow to play. Like Small/Medium it accepts only
+    // reasoning_effort high|none, and unlike them it reasons when the field is omitted. At high
+    // a realistic day-2 vote took 25-154s (half past the 60s timeout) and its parallel story
+    // batches finished ~100s apart (Mistral served them one at a time: ~6 min per story). Off,
+    // it answers in ~1s with no trace. Re-test before re-adding.
     [LLM_CONSTANTS.MISTRAL_MEDIUM]: {
         displayName: 'Mistral Medium 3.5',
         // The docs' explicit 3.5 id. It was `mistral-medium-3` until 2026-09-18, which Mistral
@@ -445,9 +437,9 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // real against $0.85 tracked, a 5.7x undercharge. It is a router with no published price,
     // so the rate is not even guaranteed stable, and its cache hit rate was 9.3% — effectively
     // zero, since every hit came from a duplicate call seconds apart rather than turn-to-turn
-    // prefix reuse. Ultra costs the same and is predictable.
+    // prefix reuse.
     //
-    // reasoningEffort is PINNED on both entries because the server default differs per model:
+    // reasoningEffort was PINNED on both entries because the server default differs per model:
     // fugu-ultra defaults to `xhigh` (console.sakana.ai/models), fugu-max to `high`. Until
     // 2026-09-20 the agent sent no effort at all, so every Ultra turn ran at xhigh. Measured that
     // day on a 2k-token three-day game prompt (two samples each, chat completions, json mode):
@@ -457,17 +449,17 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     //   max   xhigh   41s /  47s   $0.02
     // `max_tokens` is not a latency lever for Ultra: Sakana applies it to the final response only,
     // the orchestrator "still uses maximum token limit". Effort is the only knob.
-    [LLM_CONSTANTS.FUGU_ULTRA]: {
-        displayName: 'Sakana Fugu Ultra',
-        modelApiName: 'fugu-ultra',
-        apiKeyName: API_KEY_CONSTANTS.FUGU,
-        hasThinking: false,
-        reasoningEffort: 'high',
-        tags: ['extremely-slow', 'expensive'],
-    },
+    //
+    // Fugu Ultra (`fugu-ultra`, $5/$30, $0.50 cached; ×~2 above 272K) was REMOVED in 0.19.1
+    // (2026-10-07): too slow and too expensive for what it played. At `high` a day-2 vote took
+    // 39s and a turn 65-78s (past the 60s request timeout), and as Game Master its four parallel
+    // story batches ran past 240s each. It also billed "orchestration" tokens (its internal expert
+    // calls) on top of the visible counts; FuguAgent still folds those in, in case Max ever
+    // reports them. Consumers map the id to Max.
     // Fugu Max (2026-09-20, fugu-max → fugu-max-v1.0): Sakana's "largest pool of models on the
-    // cost–performance Pareto frontier" — the everyday Fugu at 5x less than Ultra's output rate
-    // and a fraction of its latency. It reasons (reasoning_tokens 80-500 a turn) but, like
+    // cost–performance Pareto frontier" — 5x less than Ultra's output rate and a fraction of its
+    // latency; the only Fugu since 0.19.1. Live 2026-10-06: day-2 vote 11s, 15-character story
+    // pipeline 100s. It reasons (reasoning_tokens 80-500 a turn) but, like
     // Ultra, never returns reasoning_content, hence hasThinking: false. No orchestration
     // tokens observed on any call.
     [LLM_CONSTANTS.FUGU_MAX]: {
@@ -832,13 +824,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     // Mistral models (mistral.ai/pricing/api, verified 2026-09-18). Cached tokens bill at 10% of
     // the input price (documented on the prompt_cache_key param; no per-model cached prices
     // published). Reasoning tokens are counted inside completion_tokens — no separate
-    // reasoning_tokens field — so the output rate already covers the trace. Large 4 added
-    // 2026-10-06 at its published rates ($0.07 cached, not an exact 10%).
-    [SupportedAiModels[LLM_CONSTANTS.MISTRAL_LARGE].modelApiName]: {
-        inputPrice: 0.68,
-        outputPrice: 2.09,
-        cacheHitPrice: 0.07
-    },
+    // reasoning_tokens field — so the output rate already covers the trace.
     [SupportedAiModels[LLM_CONSTANTS.MISTRAL_MEDIUM].modelApiName]: {
         inputPrice: 1.5,
         outputPrice: 7.5,
@@ -864,21 +850,10 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         extendedContextThresholdTokens: 200_000
     },
 
-    // Sakana Fugu models (console.sakana.ai/pricing, read 2026-09-20). Base `fugu` was retired
-    // 2026-08-04 — it had no published price and measured out at these same ultra rates, so it
-    // has no pricing entry. fugu-ultra: above 272K context the rates roughly double. Ultra also
-    // reports "orchestration" tokens (its internal expert calls) in prompt_tokens_details /
-    // completion_tokens_details, billed at these same input/output rates — FuguAgent folds them
-    // into the token counts before pricing.
-    [SupportedAiModels[LLM_CONSTANTS.FUGU_ULTRA].modelApiName]: {
-        inputPrice: 5.0,
-        outputPrice: 30.0,
-        cacheHitPrice: 0.50,
-        extendedContextInputPrice: 10.0,
-        extendedContextOutputPrice: 45.0,
-        extendedContextCacheHitPrice: 1.00,
-        extendedContextThresholdTokens: 272_000
-    },
+    // Sakana Fugu (console.sakana.ai/pricing, read 2026-09-20). Base `fugu` (retired 2026-08-04)
+    // and `fugu-ultra` (removed 0.19.1) have no entries. Any "orchestration" tokens reported in
+    // prompt_tokens_details / completion_tokens_details bill at these same rates — FuguAgent
+    // folds them into the token counts before pricing.
     // fugu-max: flat rates, no context tiers.
     [SupportedAiModels[LLM_CONSTANTS.FUGU_MAX].modelApiName]: {
         inputPrice: 2.0,
@@ -948,7 +923,6 @@ const HYBRID_THINKING_API_NAMES = new Set([
     SupportedAiModels[LLM_CONSTANTS.MINIMAX].modelApiName,
     // Mistral reasons only when asked (`reasoning_effort`), and we always ask — hybrid by the
     // same definition as Qwen. Added 2026-09-18 when the two entries went thinking-on.
-    SupportedAiModels[LLM_CONSTANTS.MISTRAL_LARGE].modelApiName,
     SupportedAiModels[LLM_CONSTANTS.MISTRAL_MEDIUM].modelApiName,
     SupportedAiModels[LLM_CONSTANTS.MISTRAL_SMALL].modelApiName,
 ]);

@@ -20,11 +20,11 @@ import type { ReasoningEffort } from './catalog';
  *   exactly that enum). The server default is xhigh for fugu-ultra and high for the rest.
  * - Meta Muse Spark (verified 2026-09-12): minimal|low|medium|high|xhigh|max ("none" → 400; max is
  *   Standard tier only)
- * - Mistral Small 4 / Medium 3.5 (verified 2026-09-18): the API enum is
- *   none|minimal|low|medium|high|xhigh, with reasoning OFF unless the field is sent. "none" is
- *   not on the shared scale and means "don't reason", which an agent expresses by omitting the
- *   field, so the exported slice starts at minimal. Only "high" is documented to return the
- *   thinking chunk; the intermediate levels are accepted but unverified.
+ * - Mistral Small 4 / Medium 3.5 / Large 4: the documented API enum is
+ *   none|minimal|low|medium|high|xhigh, but every model we run accepts only "none" and "high"
+ *   (each other value is a 400 "not supported for this model, supported values: [high, none]",
+ *   checked on all three 2026-10-06). Reasoning is OFF unless the field is sent; "none" means
+ *   "don't reason", which an agent expresses by omitting the field, so the slice is just high.
  * - xAI Grok 4.7 (docs.x.ai/developers/model-capabilities/text/reasoning, 2026-09-22):
  *   low|medium|high|xhigh, default high, sent on the Responses API as `reasoning: {effort}`.
  *   Chat Completions has no equivalent. Grok 4.6 and earlier had no knob at all.
@@ -59,7 +59,7 @@ export const GLM_REASONING_EFFORTS: readonly GlmReasoningEffort[] = ['low', 'hig
 export const DEEPSEEK_REASONING_EFFORTS: readonly DeepSeekReasoningEffort[] = ['low', 'high', 'max'];
 export const FUGU_REASONING_EFFORTS: readonly FuguReasoningEffort[] = ['high', 'xhigh', 'max'];
 export const META_REASONING_EFFORTS: readonly MetaReasoningEffort[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
-export const MISTRAL_REASONING_EFFORTS: readonly MistralReasoningEffort[] = ['minimal', 'low', 'medium', 'high', 'xhigh'];
+export const MISTRAL_REASONING_EFFORTS: readonly MistralReasoningEffort[] = ['high'];
 export const XAI_REASONING_EFFORTS: readonly XaiReasoningEffort[] = ['low', 'medium', 'high', 'xhigh'];
 export const KIMI_REASONING_EFFORTS: readonly KimiReasoningEffort[] = ['low', 'high', 'max'];
 

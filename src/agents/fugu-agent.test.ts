@@ -14,7 +14,8 @@ import { FuguAgent, extractFuguTokenUsage } from './fugu-agent';
 
 const MESSAGES: AIMessage[] = [{ role: 'user', content: 'Say something.' }];
 
-// A real fugu-ultra usage block: 3,418 visible prompt tokens plus 8,956 orchestration input,
+// A real fugu-ultra usage block (Ultra was removed in 0.19.1; the shape is kept in case Max
+// ever reports orchestration): 3,418 visible prompt tokens plus 8,956 orchestration input,
 // 840 visible completion (601 of them reasoning) plus 2,305 orchestration output.
 const ULTRA_USAGE = {
   prompt_tokens: 3418,
@@ -37,8 +38,8 @@ const textCompletion = { choices: [{ message: { content: 'hello' }, finish_reaso
 const jsonCompletion = { choices: [{ message: { content: '{"reply":"hello"}' }, finish_reason: 'stop' }], usage: ULTRA_USAGE };
 
 describe('FuguAgent request shape', () => {
-  it('askText sends the catalog reasoning_effort (high) for fugu-ultra, never the xhigh server default', async () => {
-    const { agent, captured } = makeAgent('fugu-ultra', textCompletion);
+  it('askText sends the catalog reasoning_effort (high) on every request', async () => {
+    const { agent, captured } = makeAgent('fugu-max', textCompletion);
     await agent.askText(MESSAGES);
 
     expect(captured.params.reasoning_effort).toBe('high');
@@ -55,7 +56,7 @@ describe('FuguAgent request shape', () => {
   });
 
   it('a per-instance override is clamped to what Sakana accepts (high | xhigh | max)', async () => {
-    const { agent, captured } = makeAgent('fugu-ultra', textCompletion);
+    const { agent, captured } = makeAgent('fugu-max', textCompletion);
     agent.reasoningEffort = 'low';
     await agent.askText(MESSAGES);
     expect(captured.params.reasoning_effort).toBe('high');
@@ -68,24 +69,24 @@ describe('FuguAgent request shape', () => {
 
 describe('Fugu usage accounting', () => {
   it('folds orchestration tokens into the billed input and output', () => {
-    const usage = extractFuguTokenUsage('fugu-ultra', { usage: ULTRA_USAGE })!;
+    const usage = extractFuguTokenUsage('fugu-max', { usage: ULTRA_USAGE })!;
 
     expect(usage.inputTokens).toBe(3418 + 8956);
     expect(usage.outputTokens).toBe(840 + 2305);
     expect(usage.totalTokens).toBe(usage.inputTokens + usage.outputTokens);
     expect(usage.reasoningTokens).toBe(601);
-    // $5 in, $30 out per million, no cache hits.
-    expect(usage.costUSD).toBeCloseTo((12374 * 5 + 3145 * 30) / 1e6, 6);
+    // fugu-max rates: $2 in, $6 out per million, no cache hits.
+    expect(usage.costUSD).toBeCloseTo((12374 * 2 + 3145 * 6) / 1e6, 6);
   });
 
   it('bills orchestration cache hits at the cached rate', () => {
-    const usage = extractFuguTokenUsage('fugu-ultra', { usage: {
+    const usage = extractFuguTokenUsage('fugu-max', { usage: {
       ...ULTRA_USAGE,
       prompt_tokens_details: { cached_tokens: 1000, orchestration_input_tokens: 8956, orchestration_input_cached_tokens: 4000 },
     } })!;
 
     expect(usage.cachedInputTokens).toBe(5000);
-    expect(usage.costUSD).toBeCloseTo(((12374 - 5000) * 5 + 5000 * 0.5 + 3145 * 30) / 1e6, 6);
+    expect(usage.costUSD).toBeCloseTo(((12374 - 5000) * 2 + 5000 * 0.25 + 3145 * 6) / 1e6, 6);
   });
 
   it('is a plain pass-through for fugu-max (no orchestration) and omits a zero reasoning count', () => {
@@ -102,7 +103,7 @@ describe('Fugu usage accounting', () => {
   });
 
   it('the agent reports the folded usage from a live-shaped completion', async () => {
-    const { agent } = makeAgent('fugu-ultra', textCompletion);
+    const { agent } = makeAgent('fugu-max', textCompletion);
     const [, , tokenUsage] = await agent.askText(MESSAGES);
     expect(tokenUsage?.inputTokens).toBe(12374);
     expect(tokenUsage?.outputTokens).toBe(3145);
