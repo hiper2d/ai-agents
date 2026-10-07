@@ -7,6 +7,7 @@ import { ModelOverloadError, ModelRateLimitError, ModelUnavailableError, ModelAu
 import { z } from 'zod';
 import { ZodSchemaConverter } from '../zod-schema-converter';
 import { calculateGoogleCost } from '../pricing/google-pricing';
+import { getModelConfigByApiName } from '../catalog';
 
 type GoogleRole = 'model' | 'user';
 
@@ -76,6 +77,13 @@ export function throwForEmptyGeminiResponse(model: string, response: any, fallba
 
 export class GoogleAgent extends AbstractAgent {
     private readonly client: GoogleGenAI;
+    /**
+     * Sampling temperature to send, or undefined to send none. Google deprecated custom sampling
+     * (notice of 2026-10): since Gemini 3.6 Flash temperature/top_p/top_k are ignored, and its
+     * upcoming models reject them with a 400. So it is sent only for a catalog entry that sets
+     * `temperature` (the pre-3.6 models, to keep their behaviour) — never by default.
+     */
+    private readonly samplingTemperature: number | undefined;
     private readonly defaultConfig = {
         responseMimeType: "application/json"
     };
@@ -103,7 +111,9 @@ export class GoogleAgent extends AbstractAgent {
         enableThinking: boolean = false,
         agentLoggingConfig: AgentLoggingConfig = DEFAULT_LOGGING_CONFIG.agents
     ) {
-        super(name, instruction, model, 0.2, enableThinking, agentLoggingConfig);
+        const samplingTemperature = getModelConfigByApiName(model)?.temperature;
+        super(name, instruction, model, samplingTemperature ?? 0, enableThinking, agentLoggingConfig);
+        this.samplingTemperature = samplingTemperature;
         this.client = new GoogleGenAI({
             apiKey: apiKey
         });
@@ -237,7 +247,7 @@ export class GoogleAgent extends AbstractAgent {
             const googleSchema = ZodSchemaConverter.toGoogleSchema(zodSchema);
 
             const config: any = {
-                temperature: this.temperature,
+                ...(this.samplingTemperature !== undefined ? { temperature: this.samplingTemperature } : {}),
                 responseMimeType: "application/json",
                 responseSchema: googleSchema,
                 maxOutputTokens: this.maxOutputTokens,
@@ -368,7 +378,7 @@ export class GoogleAgent extends AbstractAgent {
 
         try {
             const config: any = {
-                temperature: this.temperature,
+                ...(this.samplingTemperature !== undefined ? { temperature: this.samplingTemperature } : {}),
                 maxOutputTokens: this.maxOutputTokens,
                 systemInstruction: this.instruction
             };

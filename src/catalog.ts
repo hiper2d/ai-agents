@@ -287,6 +287,10 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         apiKeyName: API_KEY_CONSTANTS.GOOGLE,
         hasThinking: true,
         reasoningEffort: 'high',
+        // Pre-3.6: still honours sampling params, so it keeps the 0.2 GoogleAgent always sent
+        // before 2026-10-07. 3.6+ ignore them and future Gemini models reject them — leave
+        // `temperature` unset on every newer Gemini entry (GoogleAgent then sends none).
+        temperature: 0.2,
         tags: ['expensive'],
     },
     [LLM_CONSTANTS.GEMINI_FLASH]: {
@@ -306,6 +310,8 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         apiKeyName: API_KEY_CONSTANTS.GOOGLE,
         hasThinking: true,
         reasoningEffort: 'minimal',
+        // Pre-3.6, same as Pro: keeps the 0.2 it always had.
+        temperature: 0.2,
         tags: ['fast', 'cheap'],
     },
     // Always-on reasoning — no non-thinking sibling. Bumped 4.6 → 4.7 on 2026-09-22 (id verified

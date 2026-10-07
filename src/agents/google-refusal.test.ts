@@ -71,3 +71,35 @@ describe('GoogleAgent refusal handling', () => {
         expect(err.message).toBe('Empty response from Google API (finishReason=STOP)');
     });
 });
+
+describe('GoogleAgent sampling parameters', () => {
+    const okResponse = { text: '{"reply":"hi"}', candidates: [{ content: { parts: [{ text: '{"reply":"hi"}' }] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 3, totalTokenCount: 8 } };
+    function capturing(model: string) {
+        const agent = new GoogleAgent('Mira', 'instruction', model, 'key', true, SILENT_LOGGING);
+        const calls: any[] = [];
+        (agent as any).client = { models: { generateContent: async (req: any) => { calls.push(req); return okResponse; } } };
+        return { agent, calls };
+    }
+
+    it('sends no temperature for Gemini 3.6+ (deprecated, future models reject it), on both ask paths', async () => {
+        const { agent, calls } = capturing('gemini-3.8-flash');
+        await agent.askText(MESSAGES);
+        await agent.askWithZodSchema(ReplySchema, MESSAGES);
+        for (const req of calls) {
+            expect(req.config).not.toHaveProperty('temperature');
+            expect(req.config).not.toHaveProperty('topP');
+            expect(req.config).not.toHaveProperty('topK');
+            expect(req.config.thinkingConfig).not.toHaveProperty('thinkingBudget');
+            expect(req.config.thinkingConfig.thinkingLevel).toBe('MEDIUM');
+        }
+    });
+
+    it('keeps the catalog temperature for the pre-3.6 models', async () => {
+        for (const model of ['gemini-3.1-pro-preview', 'gemini-3.5-flash-lite']) {
+            const { agent, calls } = capturing(model);
+            await agent.askText(MESSAGES);
+            expect(calls[0].config.temperature).toBe(0.2);
+        }
+    });
+});
+
