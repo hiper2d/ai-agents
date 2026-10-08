@@ -35,7 +35,7 @@ export abstract class AbstractAgent {
      * Reasoning-depth knobs, resolved once from the catalog like maxOutputTokens and, like it,
      * overridable per instance for calls whose profile differs from a turn (story generation
      * runs deeper). Each provider speaks one dialect — effort (DeepSeek, GLM, Gemini, Claude
-     * adaptive) or a token budget (Qwen, Claude Haiku) — and reads only the field it
+     * adaptive) or a token budget (Qwen, Claude Haiku 4.5) — and reads only the field it
      * understands; the other is ignored. Subclasses read these when building a request.
      */
     reasoningEffort?: ReasoningEffort;

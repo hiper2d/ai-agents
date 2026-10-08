@@ -184,13 +184,19 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         reasoningEffort: 'high',
         tags: ['expensive'],
     },
+    // Haiku moved 4.5 → 5.5 on 2026-10-08 (`claude-haiku-5-5`, verified live with the platform
+    // key). 10x cheaper ($0.10/$0.50 up to 100K-token prompts), 1M context / 128K output.
+    // Adaptive thinking now (the `enabled` + budget_tokens mode 4.5 used is rejected), API
+    // default effort `medium`; we pin `high` like the other Claude entries. It reads Haiku 4.5
+    // thinking blocks, so games moving onto it keep the bots' earlier reasoning. 'slow' tag
+    // dropped: Anthropic lists it as the fastest model in the lineup.
     [LLM_CONSTANTS.CLAUDE_HAIKU]: {
-        displayName: 'Claude 4.5 Haiku',
-        modelApiName: 'claude-haiku-4-5',
+        displayName: 'Claude 5.5 Haiku',
+        modelApiName: 'claude-haiku-5-5',
         apiKeyName: API_KEY_CONSTANTS.ANTHROPIC,
         hasThinking: true,
-        thinkingBudgetTokens: 1024,
-        tags: ['slow', 'cheap'],
+        reasoningEffort: 'high',
+        tags: ['cheap'],
     },
 
     // DeepSeek V4 models — thinking-only entries (non-thinking variants retired 2026-08-05).
@@ -794,9 +800,16 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         cacheHitPrice: 0.20
     },
     [SupportedAiModels[LLM_CONSTANTS.CLAUDE_HAIKU].modelApiName]: {
-        inputPrice: 1.0,
-        outputPrice: 5.0,
-        cacheHitPrice: 0.10
+        // Haiku 5.5 (2026-10-07): the first Claude with a long-context tier — every rate is 5x
+        // for prompts over 100K tokens (cache reads + writes count toward the prompt size,
+        // which is what AnthropicAgent passes as inputTokens).
+        inputPrice: 0.10,
+        outputPrice: 0.50,
+        cacheHitPrice: 0.01,
+        extendedContextInputPrice: 0.50,
+        extendedContextOutputPrice: 2.50,
+        extendedContextCacheHitPrice: 0.05,
+        extendedContextThresholdTokens: 100_000
     },
 
     // Google models

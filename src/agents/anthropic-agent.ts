@@ -38,6 +38,15 @@ const rejectsDisabledThinking = (model: string): boolean =>
  */
 const usesBetweenToolsForOff = (model: string): boolean => model.includes('sonnet-5-5');
 
+/**
+ * Every current Claude model thinks adaptively, steered by `output_config.effort`, and rejects
+ * a non-default temperature. Only Haiku 4.5 predates that: it takes `enabled` thinking with
+ * `budget_tokens`. Haiku 5.5 (2026-10-07) moved to adaptive and answers `enabled` with
+ *   "thinking.type.enabled" is not supported for this model.
+ * Unlike Sonnet 5.5 it still accepts `disabled` (and rejects `between_tools`).
+ */
+const usesAdaptiveThinking = (model: string): boolean => !model.includes('haiku-4');
+
 interface TextBlock {
     type: 'text';
     text: string;
@@ -72,7 +81,8 @@ export class ClaudeAgent extends AbstractAgent {
     //             state writes (a lynch, the night resolution, the summary rewrite, the new
     //             day), so every call inside one of those windows reads it.
     // GM prompts have no marker → single block, same behavior as before. Haiku 4.5 needs a
-    // 4096-token cacheable prefix, so tiers below that silently no-op on Haiku — expected.
+    // 4096-token cacheable prefix, so tiers below that silently no-op there; Haiku 5.5 caches
+    // from ~1024 tokens (measured 2026-10-08: a 1,083-token prefix was written, 492 was not).
     // A getter, not a field: `maxOutputTokens` can be raised after construction, and a field
     // initializer would snapshot the default and silently ignore the override.
     private get defaultParams(): Omit<Anthropic.MessageCreateParams, 'messages'> {
@@ -313,15 +323,14 @@ export class ClaudeAgent extends AbstractAgent {
             };
 
             // Add thinking config for Anthropic models with thinking mode.
-            // Fable 5, Opus 4.8 and Sonnet 5 use adaptive thinking and reject the temperature param
-            // (and budget_tokens) — Haiku 4.5 still uses enabled thinking with a budget.
-            // Fable 5's thinking is always on: it has no non-thinking variant and rejects
+            // Adaptive models reject the temperature param (and budget_tokens) — only Haiku 4.5
+            // still uses enabled thinking with a budget (see usesAdaptiveThinking).
+            // Fable's thinking is always on: it has no non-thinking variant and rejects
             // thinking:{type:"disabled"}, so it only ever hits the adaptive branch below.
-            const usesAdaptiveThinking = this.model.includes('fable')
-                || this.model.includes('opus') || this.model.includes('sonnet');
+            const adaptive = usesAdaptiveThinking(this.model);
             if (canUseThinking) {
-                if (usesAdaptiveThinking) {
-                    // Fable 5 / Opus 4.8 / Sonnet 5: adaptive thinking with effort control.
+                if (adaptive) {
+                    // Adaptive thinking with effort control.
                     // display: "summarized" is required to surface the reasoning — these models
                     // default to "omitted", which returns thinking blocks with an empty field.
                     (params as any).thinking = { type: "adaptive", display: "summarized" };
@@ -331,7 +340,7 @@ export class ClaudeAgent extends AbstractAgent {
                     (params as any).thinking = { type: "enabled", budget_tokens: this.thinkingBudgetTokens ?? 1024 };
                     params.temperature = 1;
                 }
-            } else if (usesAdaptiveThinking) {
+            } else if (adaptive) {
                 // Opus 4.8 / Sonnet 5 reject a non-default temperature. Sonnet 5 also defaults to
                 // adaptive thinking when `thinking` is omitted, so disable it explicitly to keep the
                 // non-thinking variant from reasoning (avoiding extra thinking cost and latency).
@@ -464,20 +473,19 @@ export class ClaudeAgent extends AbstractAgent {
             };
 
             // Add thinking config for Anthropic models with thinking mode.
-            // Fable 5, Opus 4.8 and Sonnet 5 use adaptive thinking and have deprecated the temperature
-            // param (and budget_tokens). Fable 5's thinking is always on: it rejects
-            // thinking:{type:"disabled"}, so it only ever hits the adaptive branch below.
-            const usesAdaptiveThinking = this.model.includes('fable')
-                || this.model.includes('opus') || this.model.includes('sonnet');
+            // Adaptive models have deprecated the temperature param (and budget_tokens). Fable's
+            // thinking is always on: it rejects thinking:{type:"disabled"}, so it only ever hits
+            // the adaptive branch below.
+            const adaptive = usesAdaptiveThinking(this.model);
             if (canUseThinking) {
-                if (usesAdaptiveThinking) {
+                if (adaptive) {
                     (params as any).thinking = { type: "adaptive", display: "summarized" };
                     (params as any).output_config = { effort: toAnthropicEffort(this.reasoningEffort ?? "high") };
                 } else {
                     (params as any).thinking = { type: "enabled", budget_tokens: this.thinkingBudgetTokens ?? 1024 };
                     params.temperature = 1;
                 }
-            } else if (usesAdaptiveThinking) {
+            } else if (adaptive) {
                 // Opus 4.8 / Sonnet 5 reject a non-default temperature and default to adaptive
                 // thinking when `thinking` is omitted; disable it explicitly for the non-thinking variant.
                 // Fable and Opus 5.5 refuse the disabled mode outright — leave `thinking` unset.

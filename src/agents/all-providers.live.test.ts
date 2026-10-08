@@ -128,7 +128,6 @@ describe('All providers — constrained choice via askWithZodSchema', () => {
 // models decide per request and skip thinking on trivial prompts; Grok returns encrypted
 // reasoning; Gemini thought summaries vary. Those are logged.
 const THINKING_GUARANTEED = new Set<string>([
-    LLM_CONSTANTS.CLAUDE_HAIKU,          // budget thinking is always emitted
     LLM_CONSTANTS.DEEPSEEK_FLASH,
     LLM_CONSTANTS.DEEPSEEK_PRO,
     LLM_CONSTANTS.MISTRAL_SMALL,         // reasoning_effort: high always returns the thinking chunk
@@ -145,7 +144,7 @@ const THINKING_ALWAYS_EMPTY = new Set<string>([
 ]);
 
 const TEXT_SWEEP_MODELS = new Set<string>([
-    LLM_CONSTANTS.CLAUDE_HAIKU,          // budget thinking
+    LLM_CONSTANTS.CLAUDE_HAIKU,          // adaptive thinking (may skip thinking)
     LLM_CONSTANTS.CLAUDE_OPUS,           // adaptive thinking (may skip thinking)
     LLM_CONSTANTS.DEEPSEEK_FLASH,
     LLM_CONSTANTS.GPT_MINI,            // single path: thinking never surfaces
