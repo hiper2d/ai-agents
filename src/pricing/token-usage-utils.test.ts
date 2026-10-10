@@ -392,7 +392,6 @@ describe('Token Usage Utils', () => {
                 SupportedAiModels[LLM_CONSTANTS.CLAUDE_HAIKU].modelApiName,
                 SupportedAiModels[LLM_CONSTANTS.GEMINI_PRO].modelApiName,
                 SupportedAiModels[LLM_CONSTANTS.GEMINI_FLASH].modelApiName,
-                SupportedAiModels[LLM_CONSTANTS.MISTRAL_MEDIUM].modelApiName,
                 SupportedAiModels[LLM_CONSTANTS.MISTRAL_SMALL].modelApiName,
                 SupportedAiModels[LLM_CONSTANTS.GROK].modelApiName,
                 SupportedAiModels[LLM_CONSTANTS.GLM].modelApiName,

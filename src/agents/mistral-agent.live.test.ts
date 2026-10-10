@@ -58,10 +58,6 @@ describe('MistralAgent live', () => {
             await expectTypedReplyWithTrace(LLM_CONSTANTS.MISTRAL_SMALL);
         }, 60000);
 
-        it('Mistral Medium returns a typed reply with a reasoning trace', async () => {
-            await expectTypedReplyWithTrace(LLM_CONSTANTS.MISTRAL_MEDIUM);
-        }, 60000);
-
         it('replays a stored trace on a prior assistant turn as thinking chunks', async () => {
             const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_SMALL);
             const history = sampleHistory();
@@ -80,22 +76,6 @@ describe('MistralAgent live', () => {
             expect(thinking.length).toBeGreaterThan(0);
             expect(tokenUsage!.costUSD).toBeGreaterThan(0);
         }, 90000);
-
-        it('Mistral Medium generates an 8-character scene at a 16k output ceiling without truncating', async () => {
-            const agent = createAgent('Narrator', LLM_CONSTANTS.MISTRAL_MEDIUM);
-            agent.maxOutputTokens = 16384;
-            const [scene, thinking, tokenUsage] = await agent.askWithZodSchema(SceneSchema, SCENE_REQUEST);
-
-            expect(scene.title.length).toBeGreaterThan(0);
-            expect(scene.characters).toHaveLength(8);
-            for (const character of scene.characters) {
-                expect(character.name.length).toBeGreaterThan(0);
-                expect(character.line.length).toBeGreaterThan(0);
-            }
-            expect(thinking.length).toBeGreaterThan(0);
-            expect(tokenUsage!.totalTokens).toBe(tokenUsage!.inputTokens + tokenUsage!.outputTokens);
-            expect(tokenUsage!.costUSD).toBeGreaterThan(0);
-        }, 120000);
 
         it('Mistral Small generates an 8-character scene with reasoning on', async () => {
             const agent = createAgent('Narrator', LLM_CONSTANTS.MISTRAL_SMALL);
@@ -124,24 +104,24 @@ describe('MistralAgent live', () => {
     });
 
     describe('error handling', () => {
-        const medium = SupportedAiModels[LLM_CONSTANTS.MISTRAL_MEDIUM].modelApiName;
+        const small = SupportedAiModels[LLM_CONSTANTS.MISTRAL_SMALL].modelApiName;
         const ping: AIMessage[] = [{ role: 'user', content: 'Test message' }];
 
         it('wraps API errors in the agent error, not a schema error', async () => {
-            const agent = new MistralAgent('Mira', 'Test instruction', medium, 'invalid_api_key', false, SILENT_LOGGING);
+            const agent = new MistralAgent('Mira', 'Test instruction', small, 'invalid_api_key', false, SILENT_LOGGING);
             await expect(agent.askWithZodSchema(ReplySchema, ping))
                 .rejects.toThrow('Failed to get response from Mistral API');
         }, 30000);
 
         it('rejects a response with no choices', async () => {
-            const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_MEDIUM);
+            const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_SMALL);
             (agent as any).client.chat.complete = jest.fn().mockResolvedValue({ choices: [] });
             await expect(agent.askWithZodSchema(ReplySchema, ping))
                 .rejects.toThrow('Empty or undefined response from Mistral API');
         });
 
         it('rejects a choice with no content', async () => {
-            const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_MEDIUM);
+            const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_SMALL);
             (agent as any).client.chat.complete = jest.fn().mockResolvedValue({ choices: [{ message: {} }] });
             await expect(agent.askWithZodSchema(ReplySchema, ping))
                 .rejects.toThrow('Failed to get response from Mistral API: Invalid response format from Mistral API');
@@ -149,18 +129,13 @@ describe('MistralAgent live', () => {
     });
 
     describe('catalog', () => {
-        it('Mistral Medium: $1.5 in / $7.5 out per 1M', () => {
-            const apiName = SupportedAiModels[LLM_CONSTANTS.MISTRAL_MEDIUM].modelApiName;
-            expect(calculateModelCost(apiName, 1_000_000, 1_000_000)).toBeCloseTo(9.0, 2);
-        });
-
         it('Mistral Small: $0.15 in / $0.6 out per 1M', () => {
             const apiName = SupportedAiModels[LLM_CONSTANTS.MISTRAL_SMALL].modelApiName;
             expect(calculateModelCost(apiName, 1_000_000, 1_000_000)).toBeCloseTo(0.75, 2);
         });
 
         it('every entry is a hybrid thinking model pinned to high effort', () => {
-            for (const id of [LLM_CONSTANTS.MISTRAL_MEDIUM, LLM_CONSTANTS.MISTRAL_SMALL]) {
+            for (const id of [LLM_CONSTANTS.MISTRAL_SMALL]) {
                 const config = SupportedAiModels[id];
                 expect(config.hasThinking).toBe(true);
                 expect(config.reasoningEffort).toBe('high');

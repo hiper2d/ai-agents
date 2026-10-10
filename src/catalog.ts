@@ -67,7 +67,6 @@ export const LLM_CONSTANTS = {
     GEMINI_PRO: 'gemini-pro',
     GEMINI_FLASH: 'gemini-flash',
     GEMINI_LITE: 'gemini-lite',
-    MISTRAL_MEDIUM: 'mistral-medium',
     MISTRAL_SMALL: 'mistral-small',
     GROK: 'grok',
     KIMI: 'kimi',
@@ -339,14 +338,18 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         temperature: 0.7,
     },
 
-    // Mistral models. Two hybrid entries since 2026-09-18: reasoning is off by default on the
-    // API and switched on per request with `reasoning_effort` (see mistral-agent.ts); the trace
-    // comes back as a `thinking` content chunk and works with json_schema structured output
-    // (verified live 2026-09-18 on both). Pinned to 'high' — the only level Mistral's docs
-    // describe ("full thinking chunk before the final answer"); Small is cheap enough that the
-    // extra tokens don't matter, Medium's are priced into its free-tier band via the hybrid
-    // multiplier. Live 2026-09-18 (one short schema ask each): Small 1.7s with a ~600-char
-    // trace, Medium 3.8s with ~2000 chars — Medium's trace ran ~15x its answer length.
+    // Mistral models. One hybrid entry: reasoning is off by default on the API and switched on
+    // per request with `reasoning_effort` (see mistral-agent.ts); the trace comes back as a
+    // `thinking` content chunk and works with json_schema structured output (verified live
+    // 2026-09-18). Pinned to 'high' — the only level Mistral's docs describe ("full thinking
+    // chunk before the final answer"); Small is cheap enough that the extra tokens don't
+    // matter. Live 2026-09-18 (one short schema ask): 1.7s with a ~600-char trace.
+    //
+    // Mistral Medium 3.5 (`mistral-medium-3-5`, $1.5/$7.5, $0.15 cached) was removed in 0.21.0
+    // (2026-10-10): too slow and too expensive at the only reasoning level it takes (high|none).
+    // Production 2026-10-03..10: p50 15.9s, p90 35.1s, $0.036 a request (2x Gemini 3.1 Pro,
+    // 19x Small; reasoning spiked to 15-24k tokens), ~6% of calls failed (60s timeouts, empty
+    // replies, empty JSON), and a 15-player story pipeline took 277s. Wait for Medium 4.
     //
     // Mistral Large 3 and Magistral Medium 1.2 were dropped 2026-09-18. Large 3 was retired by
     // Mistral on 2026-08-31 (the `-latest` alias still answered, but its capabilities say
@@ -354,7 +357,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // and `magistral-medium-latest` is now literally an alias of Medium 3.5 — the model list
     // returns `mistral-medium-3-5`, `mistral-medium-3`, `mistral-medium-latest` and
     // `magistral-medium-latest` as one entry — so Magistral seats had silently become Medium
-    // seats already. Consumers map both retired ids onto the surviving pair.
+    // seats already. Consumers map both retired ids onto Small (Medium itself is gone since 0.21.0).
     //
     // Mistral Large 4 (`mistral-large-4`, $0.68/$2.09, $0.07 cached) was added in 0.19.0 and
     // removed in 0.19.1 (2026-10-06/07): too slow to play. Like Small/Medium it accepts only
@@ -362,16 +365,6 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // a realistic day-2 vote took 25-154s (half past the 60s timeout) and its parallel story
     // batches finished ~100s apart (Mistral served them one at a time: ~6 min per story). Off,
     // it answers in ~1s with no trace. Re-test before re-adding.
-    [LLM_CONSTANTS.MISTRAL_MEDIUM]: {
-        displayName: 'Mistral Medium 3.5',
-        // The docs' explicit 3.5 id. It was `mistral-medium-3` until 2026-09-18, which Mistral
-        // now serves as an alias of the same model (Medium 3 itself retired 2026-08-31).
-        modelApiName: 'mistral-medium-3-5',
-        apiKeyName: API_KEY_CONSTANTS.MISTRAL,
-        hasThinking: true,
-        reasoningEffort: 'high',
-        tags: ['fast', 'expensive'],
-    },
     [LLM_CONSTANTS.MISTRAL_SMALL]: {
         displayName: 'Mistral 4 Small',
         // Resolves to mistral-small-2603 (Small 4), which also carries the magistral-small alias.
@@ -844,11 +837,6 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     // the input price (documented on the prompt_cache_key param; no per-model cached prices
     // published). Reasoning tokens are counted inside completion_tokens — no separate
     // reasoning_tokens field — so the output rate already covers the trace.
-    [SupportedAiModels[LLM_CONSTANTS.MISTRAL_MEDIUM].modelApiName]: {
-        inputPrice: 1.5,
-        outputPrice: 7.5,
-        cacheHitPrice: 0.15
-    },
     [SupportedAiModels[LLM_CONSTANTS.MISTRAL_SMALL].modelApiName]: {
         inputPrice: 0.15,
         outputPrice: 0.6,
@@ -941,8 +929,7 @@ const HYBRID_THINKING_API_NAMES = new Set([
     SupportedAiModels[LLM_CONSTANTS.QWEN_FLASH].modelApiName,
     SupportedAiModels[LLM_CONSTANTS.MINIMAX].modelApiName,
     // Mistral reasons only when asked (`reasoning_effort`), and we always ask — hybrid by the
-    // same definition as Qwen. Added 2026-09-18 when the two entries went thinking-on.
-    SupportedAiModels[LLM_CONSTANTS.MISTRAL_MEDIUM].modelApiName,
+    // same definition as Qwen. Added 2026-09-18 when the Mistral entries went thinking-on.
     SupportedAiModels[LLM_CONSTANTS.MISTRAL_SMALL].modelApiName,
 ]);
 
