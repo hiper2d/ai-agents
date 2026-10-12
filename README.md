@@ -100,6 +100,13 @@ const { portraits, sheet, costUSD } = await drawPortraitSheet(googleKey, sharp, 
 The pure geometry (`fitFraming`, `circleFocus`, `focusToBackground`, …) is safe in a
 browser bundle for reframe editors and avatar renderers.
 
+A blocked drawing (Gemini answers HTTP 200 with no image and an `errors[]` code such as
+`image_safety` or `image_prohibited_content`) throws `ImageRefusalError` with the `code`
+and Gemini's `reason`; it is not retryable with the same prompt. Check it with
+`isImageRefusalError(error)` — by name, since this subpath is bundled apart from the main
+entry's `ModelRefusalError`. Any other imageless reply is a plain `Error` naming the
+interaction `status` and error code.
+
 ### Budget control
 
 Per-subject spend caps (a user, a tenant, a job) over UTC day and month windows. Pure and

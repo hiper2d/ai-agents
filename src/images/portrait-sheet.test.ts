@@ -4,7 +4,7 @@
  * shape and cost accounting through a fake fetch.
  */
 import { buildPortraitSheetPrompt, cutCard, DEFAULT_FILLER_PROMPT, gridFor, padCells, sliceSheet, drawPortraitSheet } from './portrait-sheet';
-import { generateImage } from './google-image';
+import { generateImage, ImageRefusalError, isImageRefusalError } from './google-image';
 import { calculateImageCost, IMAGE_MODEL_CONSTANTS } from './image-catalog';
 import { CARD_HEIGHT_PX, CARD_WIDTH_PX, DEFAULT_AVATAR_CIRCLE, PortraitCell, SharpLike } from './types';
 
@@ -173,7 +173,40 @@ describe('generateImage', () => {
         const failing = jest.fn(async () => ({ ok: false, status: 429, text: async () => 'slow down' })) as any;
         await expect(generateImage('key', 'p', '1:1', { fetchImpl: failing })).rejects.toThrow('HTTP 429 slow down');
         const empty = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({ steps: [] }), text: async () => '' })) as any;
-        await expect(generateImage('key', 'p', '1:1', { fetchImpl: empty })).rejects.toThrow('no image data');
+        await expect(generateImage('key', 'p', '1:1', { fetchImpl: empty })).rejects.toThrow('no image data (status unknown)');
+    });
+
+    it('turns a safety block into an ImageRefusalError with the code and reason', async () => {
+        const blocked = jest.fn(async () => ({
+            ok: true, status: 200, text: async () => '',
+            json: async () => ({
+                status: 'failed',
+                steps: [{ type: 'model_output', content: [{ type: 'text', text: 'I cannot draw that.' }] }],
+                errors: [{ code: 'https://ai.google.dev/gemini-api/docs/api-errors#image_prohibited_content', message: 'Prohibited content guidelines blocked image generation.' }],
+            }),
+        })) as any;
+        const error = await generateImage('key', 'p', '1:1', { fetchImpl: blocked }).catch(e => e);
+        expect(isImageRefusalError(error)).toBe(true);
+        expect(error).toBeInstanceOf(ImageRefusalError);
+        expect(error.code).toContain('image_prohibited_content');
+        expect(error.reason).toBe('Prohibited content guidelines blocked image generation.');
+        expect(error.message).toBe('gemini-3.1-flash-image declined to draw the image (image_prohibited_content): Prohibited content guidelines blocked image generation.');
+    });
+
+    it('keeps no_image and other imageless replies as plain errors that name the status and code', async () => {
+        const noImage = jest.fn(async () => ({
+            ok: true, status: 200, text: async () => '',
+            json: async () => ({ status: 'incomplete', steps: [], errors: [{ code: 'no_image', message: 'The model was unable to generate an image.' }] }),
+        })) as any;
+        const error = await generateImage('key', 'p', '1:1', { fetchImpl: noImage }).catch(e => e);
+        expect(isImageRefusalError(error)).toBe(false);
+        expect(error.message).toBe('Image response contained no image data (status incomplete; code no_image: The model was unable to generate an image.)');
+    });
+
+    it('isImageRefusalError matches by name, so a copy from another bundle or a serialized error still counts', () => {
+        expect(isImageRefusalError({ name: 'ImageRefusalError', message: 'x' })).toBe(true);
+        expect(isImageRefusalError(new Error('Image response contained no image data'))).toBe(false);
+        expect(isImageRefusalError(null)).toBe(false);
     });
 });
 

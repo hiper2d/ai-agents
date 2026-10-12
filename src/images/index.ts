@@ -26,7 +26,7 @@ export {
 } from './image-catalog';
 export type { ImageModelId, ImageModelPricing } from './image-catalog';
 
-export { generateImage } from './google-image';
+export { generateImage, ImageRefusalError, isImageRefusalError } from './google-image';
 export type { GenerateImageOptions, ImageAspectRatio } from './google-image';
 
 export {
