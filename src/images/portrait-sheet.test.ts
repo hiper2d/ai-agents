@@ -193,6 +193,46 @@ describe('generateImage', () => {
         expect(error.message).toBe('gemini-3.1-flash-image declined to draw the image (image_prohibited_content): Prohibited content guidelines blocked image generation.');
     });
 
+    it('turns the HTTP 400 "blocked" body (the shape seen in production) into an ImageRefusalError without the policy link', async () => {
+        const body = JSON.stringify({ error: {
+            message: 'Image generation blocked due to safety violations. Please modify your input and retry.',
+            code: "Unable to show the generated image. The image was filtered out because it violated Google's [Generative AI Prohibited Use policy](https://policies.google.com/terms/generative-ai/use-policy).",
+        } });
+        const blocked = jest.fn(async () => ({ ok: false, status: 400, text: async () => body })) as any;
+        const error = await generateImage('key', 'p', '1:1', { fetchImpl: blocked }).catch(e => e);
+        expect(isImageRefusalError(error)).toBe(true);
+        expect(error.code).toBe('http_400');
+        expect(error.reason).toBe('Image generation blocked due to safety violations. Please modify your input and retry.');
+        expect(error.message).toBe('gemini-3.1-flash-image declined to draw the image (http_400): Image generation blocked due to safety violations. Please modify your input and retry.');
+
+        const prohibited = jest.fn(async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'Request blocked due to prohibited content guidelines. Please modify your input and retry.' } }) })) as any;
+        expect(isImageRefusalError(await generateImage('key', 'p', '1:1', { fetchImpl: prohibited }).catch(e => e))).toBe(true);
+    });
+
+    it('keeps other 400s and a text-only explanation apart from refusals', async () => {
+        const badRequest = jest.fn(async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'Invalid aspect_ratio', code: 'invalid_argument' } }) })) as any;
+        const error = await generateImage('key', 'p', '1:1', { fetchImpl: badRequest }).catch(e => e);
+        expect(isImageRefusalError(error)).toBe(false);
+        expect(error.message).toContain('HTTP 400');
+        expect(error.message).toContain('Invalid aspect_ratio');
+
+        const textOnly = jest.fn(async () => ({
+            ok: true, status: 200, text: async () => '',
+            json: async () => ({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'I cannot help with that request because it was blocked by policy.' }] }] }),
+        })) as any;
+        const refusal = await generateImage('key', 'p', '1:1', { fetchImpl: textOnly }).catch(e => e);
+        expect(isImageRefusalError(refusal)).toBe(true);
+        expect(refusal.code).toBe('text_block');
+
+        const silent = jest.fn(async () => ({
+            ok: true, status: 200, text: async () => '',
+            json: async () => ({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'Here is a description instead.' }] }] }),
+        })) as any;
+        const plain = await generateImage('key', 'p', '1:1', { fetchImpl: silent }).catch(e => e);
+        expect(isImageRefusalError(plain)).toBe(false);
+        expect(plain.message).toBe('Image response contained no image data (status completed; text "Here is a description instead.")');
+    });
+
     it('keeps no_image and other imageless replies as plain errors that name the status and code', async () => {
         const noImage = jest.fn(async () => ({
             ok: true, status: 200, text: async () => '',
@@ -200,7 +240,7 @@ describe('generateImage', () => {
         })) as any;
         const error = await generateImage('key', 'p', '1:1', { fetchImpl: noImage }).catch(e => e);
         expect(isImageRefusalError(error)).toBe(false);
-        expect(error.message).toBe('Image response contained no image data (status incomplete; code no_image: The model was unable to generate an image.)');
+        expect(error.message).toBe('Image response contained no image data (status incomplete; code no_image; The model was unable to generate an image.)');
     });
 
     it('isImageRefusalError matches by name, so a copy from another bundle or a serialized error still counts', () => {
