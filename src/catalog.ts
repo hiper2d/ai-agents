@@ -64,6 +64,8 @@ export const LLM_CONSTANTS = {
     GPT_SOL: 'gpt-sol',
     GPT: 'gpt',
     GPT_MINI: 'gpt-mini',
+    // Gemini 4 Argon sits above Pro; version-free id so a later Argon repoint keeps persisted ids.
+    GEMINI_ARGON: 'gemini-argon',
     GEMINI_PRO: 'gemini-pro',
     GEMINI_FLASH: 'gemini-flash',
     GEMINI_LITE: 'gemini-lite',
@@ -286,6 +288,21 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // 2.5-era thinkingBudget: 1024 (2026-08-06), which HAD been binding — so Flash Lite now
     // thinks noticeably less under its "minimal" default (0.8s/49-token votes vs 4.5s/650
     // budgeted); bump it to 'low' if its output quality visibly drops.
+    // Gemini 4 Argon (added 2026-10-13, id verified against GET /v1beta/models): Google's
+    // flagship reasoning model, 1M in / 32K out. Same thinkingLevel dialect as 3.x — accepts
+    // low|medium|high, rejects 'minimal' (probed). Pinned 'high' like Pro: on a 1.7K-token game
+    // prompt 'medium' thought 0 tokens (3.2s) while 'high' thought 622 (8.1s); the level is a
+    // ceiling, so 'high' leaves the dynamic range open. No `temperature`: Gemini 4 accepts it
+    // but Google deprecated sampling params (see the Pro note). Story-pipeline speed as Game
+    // Master not measured yet — run the host's live story suite before trusting it there.
+    [LLM_CONSTANTS.GEMINI_ARGON]: {
+        displayName: 'Gemini 4 Argon',
+        modelApiName: 'gemini-4-argon',
+        apiKeyName: API_KEY_CONSTANTS.GOOGLE,
+        hasThinking: true,
+        reasoningEffort: 'high',
+        tags: ['expensive'],
+    },
     [LLM_CONSTANTS.GEMINI_PRO]: {
         displayName: 'Gemini 3.1 Pro Preview',
         modelApiName: 'gemini-3.1-pro-preview',
@@ -806,6 +823,15 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     },
 
     // Google models
+    [SupportedAiModels[LLM_CONSTANTS.GEMINI_ARGON].modelApiName]: {
+        // Launch pricing (ai.google.dev pricing page, fetched 2026-10-13), one flat tier — no
+        // >200K long-context rows, unlike 3.1 Pro. DOUBLES on 2026-12-01 to $4.00 / $20.00 /
+        // $0.20 — ACTION NEEDED then. Implicit caching only (explicit caching unsupported),
+        // cached input bills at 5% of the input price. Not on Google's free tier or AI Pro plan.
+        inputPrice: 2.0,
+        outputPrice: 10.0,
+        cacheHitPrice: 0.10
+    },
     [SupportedAiModels[LLM_CONSTANTS.GEMINI_PRO].modelApiName]: {
         inputPrice: 2.0,
         outputPrice: 12.0,

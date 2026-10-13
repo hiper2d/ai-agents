@@ -45,6 +45,7 @@ export class AgentFactory {
             case LLM_CONSTANTS.GPT:
             case LLM_CONSTANTS.GPT_MINI:
                 return new Gpt5Agent(name, instruction, model.modelApiName, key, model.temperature!, shouldEnableThinking);
+            case LLM_CONSTANTS.GEMINI_ARGON:
             case LLM_CONSTANTS.GEMINI_PRO:
             case LLM_CONSTANTS.GEMINI_FLASH:
             case LLM_CONSTANTS.GEMINI_LITE:
