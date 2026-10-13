@@ -83,6 +83,8 @@ export const LLM_CONSTANTS = {
     MINIMAX: 'minimax',
     // Meta Model API (api.meta.ai). Muse Spark; version-free id so a 1.3 → 1.4 repoint is entry-only.
     MUSE_SPARK: 'muse-spark',
+    // Muse Wonder, Meta's larger model above Spark (added 2026-10-13); same version-free pattern.
+    MUSE_WONDER: 'muse-wonder',
 }
 
 /**
@@ -561,6 +563,20 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         reasoningEffort: 'medium',
         tags: ['slow'],
     },
+    // Muse Wonder 1.0 (added 2026-10-13, id verified against GET /v1/models): Meta's model above
+    // Spark, Standard mode only (no Contributor tier). Same MetaAgent and effort vocabulary as
+    // Spark; probed low/medium/high on a short game prompt: 347/455/565 reasoning tokens in
+    // 5.9/7.3/8.5s, so the pin stays 'medium' like Spark. Game-length turns and the story
+    // pipeline are unmeasured — not tagged 'slow' yet; the host decides on Game Master use.
+    [LLM_CONSTANTS.MUSE_WONDER]: {
+        displayName: 'Muse Wonder 1.0',
+        modelApiName: 'muse-wonder-1.0',
+        apiKeyName: API_KEY_CONSTANTS.META,
+        hasThinking: true,
+        temperature: 1,
+        reasoningEffort: 'medium',
+        tags: ['expensive'],
+    },
 };
 
 export type LLMModel = keyof typeof SupportedAiModels;
@@ -932,6 +948,13 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         inputPrice: 1.25,
         outputPrice: 4.25,
         cacheHitPrice: 0.15
+    },
+    // Standard mode (Meta Model API pricing page, 2026-10-13); Contributor mode is not offered
+    // for Wonder. Cached input at 5% of input.
+    [SupportedAiModels[LLM_CONSTANTS.MUSE_WONDER].modelApiName]: {
+        inputPrice: 4.0,
+        outputPrice: 20.0,
+        cacheHitPrice: 0.20
     }
 };
 

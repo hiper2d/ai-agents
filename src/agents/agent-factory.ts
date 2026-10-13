@@ -85,6 +85,7 @@ export class AgentFactory {
 
             // Meta Muse Spark — Responses API with encrypted reasoning replay, effort from the catalog
             case LLM_CONSTANTS.MUSE_SPARK:
+            case LLM_CONSTANTS.MUSE_WONDER:
                 return new MetaAgent(name, instruction, model.modelApiName, key, model.temperature!, shouldEnableThinking);
             default:
                 throw new Error(`Unknown Key: ${modelName}`);
