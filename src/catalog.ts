@@ -297,12 +297,17 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // ceiling, so 'high' leaves the dynamic range open. No `temperature`: Gemini 4 accepts it
     // but Google deprecated sampling params (see the Pro note). Story-pipeline speed as Game
     // Master not measured yet — run the host's live story suite before trusting it there.
+    // Pinned medium 2026-10-14 (was high since it shipped on 2026-10-13). Two days of
+    // production turns at high measured p50 21s / p90 40s with three 60s timeouts, and the
+    // werewolf day-2 vote fixture took 16-34s (380-415 output tokens). At medium the same
+    // prompt took 4-11s (75-110 output tokens) with the same vote target and a reason just
+    // as specific — the same trade Grok 4.7 made on 2026-10-06.
     [LLM_CONSTANTS.GEMINI_ARGON]: {
         displayName: 'Gemini 4 Argon',
         modelApiName: 'gemini-4-argon',
         apiKeyName: API_KEY_CONSTANTS.GOOGLE,
         hasThinking: true,
-        reasoningEffort: 'high',
+        reasoningEffort: 'medium',
         tags: ['expensive'],
     },
     [LLM_CONSTANTS.GEMINI_PRO]: {
