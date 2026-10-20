@@ -11,10 +11,10 @@ import { CARD_HEIGHT_PX, CARD_WIDTH_PX, DEFAULT_AVATAR_CIRCLE, PortraitCell, Sha
 const cell = (i: number): PortraitCell => ({ key: `c${i}`, label: `Char ${i}`, prompt: `(female) "Char ${i}" — a face` });
 
 describe('gridFor / padCells', () => {
-    it('picks square-to-portrait grids and never 4x4', () => {
+    it('picks square-to-portrait grids and never 4x4 or 3x3', () => {
         expect(gridFor(5)).toEqual({ cols: 3, rows: 2 });
         expect(gridFor(8)).toEqual({ cols: 4, rows: 2 });
-        expect(gridFor(9)).toEqual({ cols: 3, rows: 3 });
+        expect(gridFor(9)).toEqual({ cols: 4, rows: 3 });
         expect(gridFor(12)).toEqual({ cols: 4, rows: 3 });
         expect(gridFor(15)).toEqual({ cols: 5, rows: 3 });
         expect(gridFor(17)).toEqual({ cols: 6, rows: 3 });

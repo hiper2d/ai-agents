@@ -283,8 +283,14 @@ export class ClaudeAgent extends AbstractAgent {
     }
 
     /**
-     * New method using Zod with Anthropic's Claude API
-     * Since Anthropic doesn't support native JSON schemas, we generate prompt descriptions
+     * Schema-validated ask on Anthropic structured outputs: the Zod schema goes out as JSON
+     * Schema in `output_config.format`, so the API constrains the reply to that shape and the
+     * model cannot answer in another one. Until 0.25.0 the schema was only described in prose
+     * appended to the last message and the reply parsed as text; Sonnet 5.5 once answered a
+     * vote with a tool-call shaped `<invoke name="json">` block instead (2026-10-18). The
+     * field descriptions travel inside the schema, so nothing is appended to the prompt any
+     * more. The reply is still run through the shared lenient parser + Zod on our side: same
+     * error messages for the host's retry hints, and a guard for a null-formatted reply.
      */
     async doAskWithZodSchema<T>(zodSchema: z.ZodSchema<T>, messages: AIMessage[]): Promise<[T, string, TokenUsage?, string?]> {
         // Validate roles first, before entering the main try-catch block
@@ -294,27 +300,13 @@ export class ClaudeAgent extends AbstractAgent {
         this.logMessages(messages);
 
         try {
-            // Generate human-readable schema description for Anthropic
-            const schemaDescription = ZodSchemaConverter.toPromptDescription(zodSchema);
-
-            // Add schema instructions to the last message
-            const lastMessage = aiMessages[aiMessages.length - 1];
-            const fullPrompt = `${lastMessage.content}\n\n${schemaDescription}`;
-
-            // Update the last AI message with schema instructions before conversion
-            const messagesWithSchema = [...aiMessages];
-            messagesWithSchema[messagesWithSchema.length - 1] = {
-                ...lastMessage,
-                content: fullPrompt
-            };
-
             // Use thinking if enabled for this agent
             const canUseThinking = this.enableThinking;
 
             // Convert messages - use thinking-aware conversion when thinking can be used
             const anthropicMessages = canUseThinking
-                ? this.convertToAnthropicMessagesWithThinking(messagesWithSchema)
-                : this.convertToAnthropicMessages(messagesWithSchema);
+                ? this.convertToAnthropicMessagesWithThinking(aiMessages)
+                : this.convertToAnthropicMessages(aiMessages);
             this.applyCacheBreakpoint(anthropicMessages);
 
             const params: Anthropic.MessageCreateParams = {
@@ -355,6 +347,15 @@ export class ClaudeAgent extends AbstractAgent {
                 // Older models (Haiku 4.5): no adaptive thinking; pass the configured temperature.
                 params.temperature = this.temperature;
             }
+
+            // Structured output: merged into output_config next to `effort` (set above for
+            // adaptive thinking), never replacing it. Each distinct schema is compiled once by
+            // Anthropic and cached for 24h, so the handful of fixed game schemas cost one slow
+            // first call each.
+            params.output_config = {
+                ...(params.output_config ?? {}),
+                format: { type: 'json_schema', schema: ZodSchemaConverter.toAnthropicSchema(zodSchema) },
+            };
 
             let response;
             try {
@@ -397,7 +398,10 @@ export class ClaudeAgent extends AbstractAgent {
                 throw new Error(this.errorMessages.invalidFormat);
             }
 
-            // Parse and validate the response using the shared lenient parser
+            // The text block is the schema-shaped JSON. Validate it on our side anyway: same
+            // lenient parser and error wording as every other agent, so a host's retry hints
+            // keep matching, and a defence for a reply the format did not constrain (e.g. a
+            // max_tokens cut mid-object).
             const parsedData = parseAndValidateLlmJson(textContent, zodSchema, (m) => this.logger(m));
 
             this.logger(`✅ Response validated successfully with Zod schema`);

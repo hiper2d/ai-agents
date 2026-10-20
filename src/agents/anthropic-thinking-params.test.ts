@@ -47,7 +47,7 @@ describe('ClaudeAgent thinking params', () => {
         expect(calls).toHaveLength(2);
         for (const params of calls) {
             expect(params.thinking).toEqual(expected);
-            expect(params.output_config).toBeUndefined();
+            expect(params.output_config?.effort).toBeUndefined();
             expect(params.temperature).toBeUndefined();
         }
     });
@@ -57,7 +57,7 @@ describe('ClaudeAgent thinking params', () => {
             const calls = await paramsFor(model, true);
             for (const params of calls) {
                 expect(params.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
-                expect(params.output_config).toEqual({ effort: 'high' });
+                expect(params.output_config.effort).toBe('high');
                 expect(params.temperature).toBeUndefined();
             }
         });
@@ -66,7 +66,35 @@ describe('ClaudeAgent thinking params', () => {
         const calls = await paramsFor('claude-haiku-4-5', true);
         for (const params of calls) {
             expect(params.thinking).toEqual({ type: 'enabled', budget_tokens: 1024 });
-            expect(params.output_config).toBeUndefined();
+            expect(params.output_config?.effort).toBeUndefined();
         }
+    });
+});
+
+describe('ClaudeAgent structured output', () => {
+    it('sends the Zod schema as a json_schema output format on the schema path only', async () => {
+        const [textCall, schemaCall] = await paramsFor('claude-sonnet-5-5', true);
+        expect(textCall.output_config.format).toBeUndefined();
+        expect(schemaCall.output_config).toEqual({
+            effort: 'high',
+            format: {
+                type: 'json_schema',
+                schema: expect.objectContaining({ type: 'object', additionalProperties: false, required: ['reply'] }),
+            },
+        });
+    });
+
+    it('keeps the format when thinking is off and no effort is sent', async () => {
+        const [, schemaCall] = await paramsFor('claude-sonnet-5-5', false);
+        expect(schemaCall.output_config).toEqual({
+            format: { type: 'json_schema', schema: expect.objectContaining({ type: 'object' }) },
+        });
+    });
+
+    it('no longer appends a prose schema description to the last message', async () => {
+        const [, schemaCall] = await paramsFor('claude-sonnet-5-5', false);
+        const last = schemaCall.messages[schemaCall.messages.length - 1];
+        const text = typeof last.content === 'string' ? last.content : last.content.map((b: any) => b.text ?? '').join('');
+        expect(text).toBe('Say something.');
     });
 });

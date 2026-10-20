@@ -202,6 +202,47 @@ export class ZodSchemaConverter {
   }
 
   /**
+   * JSON Schema for Anthropic structured outputs (`output_config.format`). Anthropic takes
+   * standard JSON Schema with a few rules: every object carries `additionalProperties: false`,
+   * nullability is `anyOf: [inner, {type: "null"}]` (the OpenAPI `nullable: true` the Google
+   * path uses is an unknown keyword there, and a `["string", "null"]` type array is refused
+   * next to an enum), unions are `anyOf`, and value constraints (min/max, lengths) are not
+   * accepted — the converter never emits those. Optional keys stay out of `required`, which
+   * Anthropic allows.
+   */
+  static toAnthropicSchema(zodSchema: z.ZodSchema): any {
+    const schema = this.zodToJsonSchema(zodSchema, { strict: true, includeDescription: true, additionalProperties: false });
+    return this.toStandardNullability(schema);
+  }
+
+  private static toStandardNullability(schema: any): any {
+    if (Array.isArray(schema)) {
+      return schema.map(item => this.toStandardNullability(item));
+    }
+    if (typeof schema !== 'object' || schema === null) {
+      return schema;
+    }
+    const { nullable, oneOf, ...rest } = schema;
+    const result: any = {};
+    for (const [key, value] of Object.entries(rest)) {
+      result[key] = key === 'enum' || key === 'required' ? value : this.toStandardNullability(value);
+    }
+    if (oneOf) {
+      result.anyOf = this.toStandardNullability(oneOf);
+    }
+    if (nullable === true) {
+      // `anyOf: [inner, {type: "null"}]`, the form the SDK's own Zod helper emits. A type
+      // array (`type: ["string", "null"]`) is refused as soon as an enum sits next to it:
+      // "Enum value 'protect' does not match declared type '['string', 'null']'" (live,
+      // 2026-10-20), with or without null among the enum values.
+      const { description, anyOf, ...inner } = result;
+      const variants = anyOf ? [...anyOf, { type: 'null' }] : [inner, { type: 'null' }];
+      return { anyOf: variants, ...(description !== undefined ? { description } : {}) };
+    }
+    return result;
+  }
+
+  /**
    * Convert Zod schema to human-readable prompt description for Anthropic
    */
   static toPromptDescription(zodSchema: z.ZodSchema): string {

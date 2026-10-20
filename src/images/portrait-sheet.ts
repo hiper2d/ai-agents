@@ -20,12 +20,14 @@ import { CARD_HEIGHT_PX, CARD_WIDTH_PX, DrawnSheet, ImageRect, PortraitCell, Por
  * sheet as 4x3, 6x3 and once as an irregular two-layout sheet — every time towards
  * taller cells. 5x3 keeps 480x597 cells for 13-15; 17 cells get 6x3 (400x600, 2:3,
  * one of the shapes the model volunteered). Never 4x4: it silently cut a 17-cell
- * cast to 16.
+ * cast to 16. Never 3x3 either (2026-10-18): on the 4:3 canvas its cells are
+ * landscape (800x600) and the model kept redrawing the 9-cell sheet as 4x3 with
+ * square cells — the smallest game (7 bots + human + GM = 9) tripped
+ * AVATAR_GRID_MISMATCH every time. 9 cells now get 4x3 with three fillers.
  */
 export function gridFor(cells: number): { cols: number; rows: number } {
     if (cells <= 6) return { cols: 3, rows: 2 };
     if (cells <= 8) return { cols: 4, rows: 2 };
-    if (cells <= 9) return { cols: 3, rows: 3 };
     if (cells <= 12) return { cols: 4, rows: 3 };
     if (cells <= 15) return { cols: 5, rows: 3 };
     if (cells <= 18) return { cols: 6, rows: 3 };
