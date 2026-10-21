@@ -79,6 +79,23 @@ describe('findDividers', () => {
             expect(findDividers(plane).cols).toEqual([{ start: 200, end: 207 }]);
         });
 
+        it('confirms the requested grid on a dark art style where lines barely contrast', () => {
+            // A space station: backgrounds at 40, lines at 2, a dark strip at 35 along
+            // the top of every row-1 cell (the cell's own content, not the line).
+            const plane = sheet(1000, 600, [200, 400], [200, 400, 600, 800], 6);
+            for (let i = 0; i < plane.data.length; i++) if (plane.data[i] === 150) plane.data[i] = 40;
+            for (let i = 0; i < plane.data.length; i++) if (plane.data[i] === 20) plane.data[i] = 2;
+            for (let y = 206; y < 260; y++) for (let x = 0; x < 1000; x++) if (plane.data[y * 1000 + x] === 40) plane.data[y * 1000 + x] = 35;
+            const grid = detectSheetGrid(plane, 5, 3);
+            expect(grid.detected).toBe(true);
+            expect(grid.cols).toBe(5);
+            expect(grid.rows).toBe(3);
+            expect(grid.cells).toHaveLength(15);
+            // The row-1 cells start right under the line, not under the dark strip.
+            expect(grid.cells[5].top).toBe(210);
+            expect(grid.cells[6].left).toBe(210);
+        });
+
         it('keeps a row line with dark shoulders above it', () => {
             // The previous row's clothing reaches the line across 70% of the width;
             // the next row's headroom below it is clear.

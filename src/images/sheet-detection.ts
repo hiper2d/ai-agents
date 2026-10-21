@@ -50,6 +50,19 @@ const DIVIDER_SHARE = 0.85;
 const LINE_CONTRAST = 20;
 const FLANK_FROM = 6;
 const FLANK_TO = 15;
+// The contrast test fails the other way on a dark art style (a space station,
+// a polar night, 2026-10-21): lines of 1-30 between backgrounds of 30-50 are
+// not 20 darker than their flanks, and a 5x3 sheet read as 2x1. So the
+// requested grid is tried FIRST: the model draws equal cells, and when every
+// equal-split position has a dark line within this share of the cell pitch,
+// those lines are the grid — no contrast needed. Only a sheet that fails
+// that check goes through the general line search below.
+const GRID_LINE_TOLERANCE = 0.08;
+const GRID_LINE_SHARE = 0.9;
+// A scanline next to a confirmed line belongs to it only when its mean is
+// within this of the line's: a name plate (15 vs a 20 line) does, the dark
+// top of a space-station cell (40 vs a 2 line) does not.
+const LINE_MEAN_MARGIN = 15;
 // Pixels kept clear of a divider when cutting (anti-aliased edges).
 const DIVIDER_INSET = 4;
 // A real divider is a thin line (~7 px on a 2400 px sheet). Thinner runs are
@@ -203,19 +216,98 @@ function inset(rect: ImageRect, by: number): ImageRect {
     return {left: rect.left + by, top: rect.top + by, width: Math.max(1, rect.width - 2 * by), height: Math.max(1, rect.height - 2 * by)};
 }
 
+interface Scanlines { shares: Float32Array; means: Float32Array }
+
+/** Per scanline along one axis, over the full extent of the other: the share
+ * of dark pixels and the mean value. */
+function scanlines(plane: GreyPlane, axis: 'rows' | 'cols'): Scanlines {
+    const {width, height, data} = plane;
+    const extent = axis === 'rows' ? height : width;
+    const span = axis === 'rows' ? width : height;
+    const shares = new Float32Array(extent), means = new Float32Array(extent);
+    for (let i = 0; i < extent; i++) {
+        let count = 0, sum = 0;
+        if (axis === 'rows') {
+            const base = i * width;
+            for (let x = 0; x < width; x++) { const v = data[base + x]; sum += v; if (v < DARK_MAX) count++; }
+        } else {
+            for (let y = 0; y < height; y++) { const v = data[y * width + i]; sum += v; if (v < DARK_MAX) count++; }
+        }
+        shares[i] = count / span;
+        means[i] = sum / span;
+    }
+    return {shares, means};
+}
+
+/** The dark line nearest an expected position, within the tolerance, or
+ * null. The run is the darkest scanline plus its neighbours that are as
+ * dark as it, near enough — the stroke and a name plate hugging it, not the
+ * dark cell top beside it. Where even that is too thick to be a line (a
+ * black art style all around) the line is a 7 px stroke at the darkest
+ * scanline. */
+function lineNear(lines: Scanlines, position: number, tolerance: number, maxThickness: number): Run | null {
+    const {shares, means} = lines;
+    const extent = shares.length;
+    const lo = Math.max(3, Math.round(position - tolerance));
+    const hi = Math.min(extent - 4, Math.round(position + tolerance));
+    let at = -1;
+    for (let i = lo; i <= hi; i++) if (at < 0 || shares[i] > shares[at] || (shares[i] === shares[at] && means[i] < means[at])) at = i;
+    if (at < 0 || shares[at] < GRID_LINE_SHARE) return null;
+    const partOfLine = (i: number) => shares[i] >= GRID_LINE_SHARE && means[i] <= means[at] + LINE_MEAN_MARGIN;
+    let start = at, end = at;
+    while (start - 1 >= 3 && partOfLine(start - 1)) start--;
+    while (end + 1 <= extent - 4 && partOfLine(end + 1)) end++;
+    if (end - start + 1 > maxThickness) return {start: Math.max(3, at - 3), end: Math.min(extent - 4, at + 3)};
+    return {start, end};
+}
+
+/** The requested grid confirmed on the pixels: a dark line near every
+ * equal-split position on both axes. Null when any line is missing. */
+export function confirmGrid(plane: GreyPlane, cols: number, rows: number): SheetGrid | null {
+    const {width, height} = plane;
+    const find = (axis: 'rows' | 'cols', count: number): Run[] | null => {
+        const extent = axis === 'rows' ? height : width;
+        const scan = scanlines(plane, axis);
+        const pitch = extent / count;
+        const lines: Run[] = [];
+        for (let k = 1; k < count; k++) {
+            const line = lineNear(scan, k * pitch, pitch * GRID_LINE_TOLERANCE, extent * DIVIDER_MAX_THICKNESS_SHARE);
+            if (!line) return null;
+            lines.push(line);
+        }
+        return lines;
+    };
+    const colLines = find('cols', cols);
+    if (!colLines) return null;
+    const rowLines = find('rows', rows);
+    if (!rowLines) return null;
+    const cells: ImageRect[] = [];
+    for (const band of spans(rowLines, height)) {
+        for (const x of spans(colLines, width)) {
+            cells.push(inset({left: x.start, top: band.start, width: x.end - x.start, height: band.end - band.start}, DIVIDER_INSET));
+        }
+    }
+    return {cells, cols, rows, detected: true};
+}
+
 /**
- * The sheet's cells. Read off the divider lines the model drew whenever they
- * form a plausible grid, even when that grid differs from the cols x rows
- * that were asked for — the model keeps row-major order, so the drawn cells
- * still map to the characters in sequence. Row lines are found over the
- * full width; column lines are found PER ROW BAND, because the model has
- * drawn rows with different column layouts (and a column line that stops
- * short of the last row). A band without lines of its own borrows the
- * layout of the band above it. The equal split of the requested grid is the
- * last resort when no lines are found at all (the caller logs it; the kept
- * sheet lets the owner reframe by hand either way).
+ * The sheet's cells. The requested grid is confirmed on the pixels first
+ * (`confirmGrid`); the model draws it as asked far more often than not, and
+ * that check needs no assumptions about the art style. Otherwise the divider
+ * lines the model drew are read wherever they form a plausible grid, even
+ * when that grid differs from the cols x rows that were asked for — the
+ * model keeps row-major order, so the drawn cells still map to the
+ * characters in sequence. Row lines are found over the full width; column
+ * lines are found PER ROW BAND, because the model has drawn rows with
+ * different column layouts (and a column line that stops short of the last
+ * row). A band without lines of its own borrows the layout of the band
+ * above it. The equal split of the requested grid is the last resort when
+ * no lines are found at all (the caller logs it; the kept sheet lets the
+ * owner reframe by hand either way).
  */
 export function detectSheetGrid(plane: GreyPlane, cols: number, rows: number): SheetGrid {
+    const confirmed = confirmGrid(plane, cols, rows);
+    if (confirmed) return confirmed;
     const {width, height} = plane;
     const rowLines = dropSliverMakers(lineRuns(plane, 'rows', 0, width), height);
     const bands = spans(rowLines, height);
