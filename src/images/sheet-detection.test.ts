@@ -45,6 +45,48 @@ describe('findDividers', () => {
         for (let x = 0; x < 240; x++) plane.data[150 * 400 + x] = 10;
         expect(findDividers(plane).rows).toEqual([]);
     });
+
+    // Nano Banana 2.1 (2026-10-21) paints "muted" backgrounds at 40-58 on the
+    // grey plane: whole cells pass the darkness test, so a line fused into a
+    // dark cell was dropped as too thick and dark objects passed as lines.
+    describe('dark cell backgrounds', () => {
+        function darkSheet(): GreyPlane {
+            const plane = sheet(600, 300, [], [200, 400]);
+            // Cells 2 and 3 (x 206-399, 406-599) have a navy background just under the threshold.
+            for (let y = 0; y < 300; y++) for (let x = 206; x < 600; x++) if (plane.data[y * 600 + x] === 150) plane.data[y * 600 + x] = 55;
+            return plane;
+        }
+
+        it('still finds a line between two dark cells', () => {
+            // Two dark cells either side of the line at 400: the darkness test sees one
+            // 400 px run and drops it as too thick; the contrast test keeps the line.
+            expect(findDividers(darkSheet()).cols.map(c => c.start)).toEqual([200, 400]);
+        });
+
+        it('does not take a dark object standing in a dark cell for a line', () => {
+            const plane = darkSheet();
+            // A walking stick: 10 px wide, 25 on the plane, the lower 60% of the cell.
+            for (let y = 120; y < 300; y++) for (let x = 300; x < 310; x++) plane.data[y * 600 + x] = 25;
+            // A patch of even darker background taller than the cell: no contrast with its flanks.
+            for (let y = 0; y < 300; y++) for (let x = 450; x < 500; x++) plane.data[y * 600 + x] = 38;
+            expect(findDividers(plane).cols.map(c => c.start)).toEqual([200, 400]);
+        });
+
+        it('keeps a faint line when its flanks are only a little lighter', () => {
+            const plane = sheet(400, 300, [], [200], 8);
+            for (let i = 0; i < plane.data.length; i++) if (plane.data[i] === 150) plane.data[i] = 70;
+            for (let y = 0; y < 300; y++) for (let x = 200; x < 208; x++) plane.data[y * 400 + x] = 29;
+            expect(findDividers(plane).cols).toEqual([{ start: 200, end: 207 }]);
+        });
+
+        it('keeps a row line with dark shoulders above it', () => {
+            // The previous row's clothing reaches the line across 70% of the width;
+            // the next row's headroom below it is clear.
+            const plane = sheet(400, 400, [200], []);
+            for (let y = 150; y < 200; y++) for (let x = 60; x < 340; x++) plane.data[y * 400 + x] = 30;
+            expect(findDividers(plane).rows).toEqual([{ start: 200, end: 205 }]);
+        });
+    });
 });
 
 describe('detectSheetGrid', () => {
