@@ -192,7 +192,7 @@ export interface DrawPortraitSheetSpec extends Omit<PortraitSheetPrompt, 'cols' 
 }
 
 export interface DrawPortraitSheetOptions extends SliceSheetOptions {
-    image?: Pick<GenerateImageOptions, 'model' | 'imageSize' | 'fetchImpl'>;
+    image?: Pick<GenerateImageOptions, 'model' | 'imageSize' | 'thinkingLevel' | 'fetchImpl'>;
 }
 
 export interface DrawnPortraitSheet {

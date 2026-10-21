@@ -139,25 +139,33 @@ describe('sliceSheet', () => {
 });
 
 describe('generateImage', () => {
-    const okResponse = (imageTokens: number, inputTokens: number) => ({
+    // The usage shape Nano Banana 2.1 returns (live 2026-10-20): image tokens by modality,
+    // the text it wrote folded into total_output_tokens, thinking apart.
+    const okResponse = (imageTokens: number, inputTokens: number, textTokens = 5, thoughtTokens = 0) => ({
         ok: true,
         status: 200,
         json: async () => ({
             steps: [{ content: [{ type: 'text', text: 'here' }, { type: 'image', data: Buffer.from('png').toString('base64') }] }],
-            usage: { total_input_tokens: inputTokens, output_tokens_by_modality: [{ modality: 'image', tokens: imageTokens }, { modality: 'text', tokens: 5 }] },
+            usage: {
+                total_input_tokens: inputTokens,
+                total_output_tokens: imageTokens + textTokens,
+                total_thought_tokens: thoughtTokens,
+                output_tokens_by_modality: [{ modality: 'image', tokens: imageTokens }, { modality: 'text', tokens: textTokens }],
+            },
         }),
         text: async () => '',
     });
 
     it('sends the prompt, references and format, and prices the result from usage', async () => {
-        const fetchImpl = jest.fn(async () => okResponse(1120, 300)) as any;
+        const fetchImpl = jest.fn(async () => okResponse(1120, 300, 200, 665)) as any;
         const out = await generateImage('key', 'draw it', '4:3', { references: [{ label: 'the hall', jpeg: Buffer.from('ref') }], imageSize: '1K', fetchImpl });
 
         const [url, init] = fetchImpl.mock.calls[0];
         expect(url).toContain('/v1beta/interactions');
         expect(init.headers['x-goog-api-key']).toBe('key');
         const body = JSON.parse(init.body);
-        expect(body.model).toBe(IMAGE_MODEL_CONSTANTS.GEMINI_FLASH_IMAGE);
+        expect(body.model).toBe(IMAGE_MODEL_CONSTANTS.GEMINI_NANO_BANANA);
+        expect(body.generation_config).toBeUndefined();
         expect(body.input).toEqual([
             { type: 'text', text: 'draw it' },
             { type: 'text', text: 'the hall' },
@@ -165,7 +173,18 @@ describe('generateImage', () => {
         ]);
         expect(body.response_format).toEqual({ type: 'image', mime_type: 'image/jpeg', aspect_ratio: '4:3', image_size: '1K' });
         expect(out.buffer.toString()).toBe('png');
-        expect(out.costUSD).toBe(calculateImageCost(IMAGE_MODEL_CONSTANTS.GEMINI_FLASH_IMAGE, 1120, 300));
+        // 1120 image tokens at $30/M + 300 input at $1.50/M + (200 text + 665 thought) at $7.50/M
+        expect(out.costUSD).toBe(calculateImageCost(IMAGE_MODEL_CONSTANTS.GEMINI_NANO_BANANA, 1120, 300, 865));
+        expect(out.costUSD).toBeCloseTo(0.04054, 5);
+    });
+
+    it('passes the thinking level as generation_config and keeps the old model selectable', async () => {
+        const fetchImpl = jest.fn(async () => okResponse(1120, 300)) as any;
+        const out = await generateImage('key', 'draw it', '1:1', { thinkingLevel: 'minimal', model: IMAGE_MODEL_CONSTANTS.GEMINI_FLASH_IMAGE, fetchImpl });
+        const body = JSON.parse(fetchImpl.mock.calls[0][1].body);
+        expect(body.model).toBe('gemini-3.1-flash-image');
+        expect(body.generation_config).toEqual({ thinking_level: 'minimal' });
+        // The old model has no text-output price, so the text tokens cost nothing.
         expect(out.costUSD).toBeCloseTo(0.06735, 5);
     });
 
@@ -190,7 +209,7 @@ describe('generateImage', () => {
         expect(error).toBeInstanceOf(ImageRefusalError);
         expect(error.code).toContain('image_prohibited_content');
         expect(error.reason).toBe('Prohibited content guidelines blocked image generation.');
-        expect(error.message).toBe('gemini-3.1-flash-image declined to draw the image (image_prohibited_content): Prohibited content guidelines blocked image generation.');
+        expect(error.message).toBe('gemini-nano-banana-2.1 declined to draw the image (image_prohibited_content): Prohibited content guidelines blocked image generation.');
     });
 
     it('turns the HTTP 400 "blocked" body (the shape seen in production) into an ImageRefusalError without the policy link', async () => {
@@ -203,7 +222,7 @@ describe('generateImage', () => {
         expect(isImageRefusalError(error)).toBe(true);
         expect(error.code).toBe('http_400');
         expect(error.reason).toBe('Image generation blocked due to safety violations. Please modify your input and retry.');
-        expect(error.message).toBe('gemini-3.1-flash-image declined to draw the image (http_400): Image generation blocked due to safety violations. Please modify your input and retry.');
+        expect(error.message).toBe('gemini-nano-banana-2.1 declined to draw the image (http_400): Image generation blocked due to safety violations. Please modify your input and retry.');
 
         const prohibited = jest.fn(async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'Request blocked due to prohibited content guidelines. Please modify your input and retry.' } }) })) as any;
         expect(isImageRefusalError(await generateImage('key', 'p', '1:1', { fetchImpl: prohibited }).catch(e => e))).toBe(true);
@@ -264,7 +283,7 @@ describe('drawPortraitSheet', () => {
         }, { image: { fetchImpl } });
         expect(out.portraits.map(p => p.key)).toEqual(['c1', 'c2', 'c3', 'c4']);
         expect(out.sheet.detected).toBe(true);
-        expect(out.costUSD).toBeCloseTo(0.06725, 5);
+        expect(out.costUSD).toBeCloseTo(0.03375, 5); // 1120 image tokens at $30/M + 100 input at $1.50/M
         const prompt = JSON.parse(fetchImpl.mock.calls[0][1].body).input[0].text;
         expect(prompt).toContain('exactly 6 rectangular cells, 3 columns and 2 rows');
         expect(prompt).toContain('Cell 5: "Stranger"');

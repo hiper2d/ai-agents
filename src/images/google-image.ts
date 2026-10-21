@@ -7,8 +7,11 @@ export interface GenerateImageOptions {
     /** Labeled reference JPEGs (an established scene, character portraits) that
      * anchor the drawing to a known style, place or faces. */
     references?: { label: string; jpeg: Buffer }[];
-    imageSize?: '1K' | '2K';
+    imageSize?: '1K' | '2K' | '4K';
     model?: ImageModelId;
+    /** How much the model thinks before drawing (Nano Banana 2.1; `medium` is the API
+     * default). Thought tokens bill as text output, so `minimal` is the cheap draft mode. */
+    thinkingLevel?: 'minimal' | 'medium' | 'high';
     /** Test seam / custom transport; defaults to the global fetch. */
     fetchImpl?: typeof fetch;
 }
@@ -77,8 +80,9 @@ function trimReason(text: string): string {
 
 /**
  * One image-model call on Gemini's Interactions API. Pure — no auth, no billing —
- * and the result reports its cost so the host decides whom to charge. Cost is per
- * IMAGE, not per pixel (a 1K and a 2K image both bill ~1120 output tokens).
+ * and the result reports its cost so the host decides whom to charge. The usage block
+ * reports image tokens by modality, the text the model wrote inside `total_output_tokens`,
+ * and thinking apart as `total_thought_tokens` (shape verified live 2026-10-20).
  *
  * Throws `ImageRefusalError` when Gemini blocked the drawing (see the class), and a
  * plain `Error` naming the HTTP status, or the interaction status and error code, for
@@ -99,6 +103,7 @@ export async function generateImage(apiKey: string, prompt: string, aspectRatio:
             model,
             input,
             response_format: { type: 'image', mime_type: 'image/jpeg', aspect_ratio: aspectRatio, image_size: opts.imageSize ?? '2K' },
+            ...(opts.thinkingLevel ? { generation_config: { thinking_level: opts.thinkingLevel } } : {}),
         }),
     });
     if (!res.ok) {
@@ -115,8 +120,9 @@ export async function generateImage(apiKey: string, prompt: string, aspectRatio:
         .filter((m: any) => m.modality === 'image')
         .reduce((sum: number, m: any) => sum + (m.tokens || 0), 0);
     const inputTokens = usage.total_input_tokens || 0;
+    const textTokens = Math.max(0, (usage.total_output_tokens || 0) - imageTokens) + (usage.total_thought_tokens || 0);
 
-    return { buffer: Buffer.from(b64, 'base64'), costUSD: calculateImageCost(model, imageTokens, inputTokens) };
+    return { buffer: Buffer.from(b64, 'base64'), costUSD: calculateImageCost(model, imageTokens, inputTokens, textTokens) };
 }
 
 /** Classifies a non-2xx reply: a 400 whose body says the drawing was filtered is a refusal. */
