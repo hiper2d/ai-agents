@@ -227,7 +227,9 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         reasoningEffort: 'low',
         // Reasoning tokens share the output budget, so leave room for both CoT and answer.
         maxOutputTokens: 65536,
-        tags: ['cheap'],
+        // slow: werewolf prod 2026-10-21, 785 calls over 30 days, p50 10s, p90 31s, max 156s;
+        // 7 of 79 bot turns past the 60s timeout in a 16-player game at days 8-9.
+        tags: ['slow', 'cheap'],
     },
 
     // Models with always-on reasoning
@@ -308,7 +310,9 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         apiKeyName: API_KEY_CONSTANTS.GOOGLE,
         hasThinking: true,
         reasoningEffort: 'medium',
-        tags: ['expensive'],
+        // slow: werewolf prod 2026-10-21, 193 calls over 30 days, p50 12s, p90 34s, max 207s;
+        // 3 of 50 night actions past the 60s timeout even at medium effort.
+        tags: ['slow', 'expensive'],
     },
     [LLM_CONSTANTS.GEMINI_PRO]: {
         displayName: 'Gemini 3.1 Pro Preview',
@@ -360,6 +364,9 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         hasThinking: true,
         reasoningEffort: 'medium',
         temperature: 0.7,
+        // very-slow: werewolf prod 2026-10-21, 29 calls over 30 days, p50 48s, p90 192s, max 244s
+        // at medium effort; the 15-character story pipeline took 213s on 2026-10-07.
+        tags: ['very-slow'],
     },
 
     // Mistral models. One hybrid entry: reasoning is off by default on the API and switched on
