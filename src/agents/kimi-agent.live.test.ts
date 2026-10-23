@@ -16,13 +16,19 @@ import { assistantPrompt, sampleHistory, ReplySchema, SceneSchema, SILENT_LOGGIN
 const apiKey = process.env[API_KEY_CONSTANTS.MOONSHOT];
 const describeLive = apiKey ? describe : describe.skip;
 const KIMI = SupportedAiModels[LLM_CONSTANTS.KIMI].modelApiName;
+// Both catalog entries go through the same agent: Pro and its highspeed serving tier (2x price,
+// ~2x tokens/s). The suite runs once per id so a repoint of either is caught here.
+const KIMI_IDS = [LLM_CONSTANTS.KIMI, LLM_CONSTANTS.KIMI_HIGHSPEED].map(id => SupportedAiModels[id].modelApiName);
 
 // Kimi K3 rejects any temperature but 1 and the agent never sends the field, so the value
 // passed here is irrelevant; 0 mirrors how the factory constructs it.
-const createAgent = (name: string): KimiAgent =>
-    new KimiAgent(name, assistantPrompt({ name }), KIMI, apiKey || 'test_key', 0, true, SILENT_LOGGING);
+const createAgentFor = (modelApiName: string, name: string): KimiAgent =>
+    new KimiAgent(name, assistantPrompt({ name }), modelApiName, apiKey || 'test_key', 0, true, SILENT_LOGGING);
+const createAgent = (name: string): KimiAgent => createAgentFor(KIMI, name);
 
-describe('KimiAgent live', () => {
+describe.each(KIMI_IDS)('KimiAgent live (%s)', (modelApiName) => {
+    const createAgent = (name: string): KimiAgent => createAgentFor(modelApiName, name);
+
     describeLive('askWithZodSchema against the real API', () => {
         it('returns a typed reply with token usage', async () => {
             const agent = createAgent('Mira');
@@ -84,7 +90,9 @@ describe('KimiAgent live', () => {
             expect(tokenUsage!.costUSD).toBeGreaterThan(0);
         }, 180000);
     });
+});
 
+describe('KimiAgent live', () => {
     describe('error handling', () => {
         it('wraps API errors in the agent error, not a schema error', async () => {
             const agent = new KimiAgent('Mira', 'Test instruction', KIMI, 'invalid_api_key', 0, true, SILENT_LOGGING);

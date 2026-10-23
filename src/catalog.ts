@@ -72,6 +72,9 @@ export const LLM_CONSTANTS = {
     MISTRAL_SMALL: 'mistral-small',
     GROK: 'grok',
     KIMI: 'kimi',
+    // Kimi K3.1 Pro Highspeed: the same model served 2-3x faster at 2x the price (added
+    // 2026-10-23). Version-free like `kimi`, so a K3.2 repoint keeps both ids.
+    KIMI_HIGHSPEED: 'kimi-highspeed',
     GLM: 'glm',
     GLM_FLASH: 'glm-flash',
     FUGU_MAX: 'fugu-max',
@@ -406,21 +409,40 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         tags: ['very-fast', 'cheap'],
     },
 
-    // Kimi models. Single always-reasoning entry: K3 reasons by default and the only way to stop
-    // it is the undocumented K2-era `thinking: disabled` toggle, which we no longer rely on.
-    // K3 always reasons at max effort; ~85-90% of its output tokens are reasoning tokens billed
-    // at the output rate, so real per-request cost runs well above the sticker output price.
+    // Kimi models. Always-reasoning entries: K3-series models reason by default and the only way
+    // to stop it is the undocumented K2-era `thinking: disabled` toggle, which we no longer rely on.
+    // ~85-90% of output tokens are reasoning tokens billed at the output rate, so real
+    // per-request cost runs well above the sticker output price.
+    //
+    // `kimi` repointed 2026-10-23 from kimi-k3 ($3/$15, 17-29s per turn, 146s for the
+    // 15-character story pipeline) to Kimi K3.1 Pro ($2/$10, 1M context, same low|high|max
+    // effort levels, default max). Live at high effort 2026-10-23: 3-sentence schema ask
+    // 4.2-4.5s, 8-character scene (476-845 output tokens) 9.7-14.9s = 49-57 tok/s — the same
+    // output speed as K3, so a full bot turn still lands in the 15-25s `slow` band.
+    // Consumer policy (werewolf): 1 bot per free game (opt-in) until 100 turns are measured.
     [LLM_CONSTANTS.KIMI]: {
-        displayName: 'Kimi K3',
-        modelApiName: 'kimi-k3',
+        displayName: 'Kimi K3.1 Pro',
+        modelApiName: 'kimi-k3.1-pro',
         apiKeyName: API_KEY_CONSTANTS.MOONSHOT,
         hasThinking: true,
-        // Temperature is omitted from the request: kimi-k3 rejects any value other than 1.
-        // Speed samples: 17s (2026-08-04) and 28.9s (2026-08-05) — graded into the >25s tier.
+        // Temperature is omitted from the request: K3 rejected any value other than 1.
         // Pinned 'high' 2026-09-22, down from Moonshot's 'max' default: K3 had no levels at
         // launch and the agent hardcoded max, so this is the first time the knob exists.
         reasoningEffort: 'high',
-        tags: ['very-slow', 'expensive'],
+        tags: ['slow', 'expensive'],
+    },
+    // Same model, Moonshot's high-speed serving tier ("roughly two to three times faster",
+    // platform.kimi.ai K3.1 Pro quickstart, read 2026-10-23) at 2x the price ($4/$20 — Opus 5.5
+    // money). Live the same day: schema ask 1.9-2.4s, 8-character scene (789-982 output tokens)
+    // 7.9-8.4s = 100-117 tok/s, twice Pro. No speed tag: that is the unlabeled 6-13s middle.
+    // Consumer policy (werewolf): paid tier only, deliberately — the estimate is 5.2¢ a turn.
+    [LLM_CONSTANTS.KIMI_HIGHSPEED]: {
+        displayName: 'Kimi K3.1 Pro Highspeed',
+        modelApiName: 'kimi-k3.1-pro-highspeed',
+        apiKeyName: API_KEY_CONSTANTS.MOONSHOT,
+        hasThinking: true,
+        reasoningEffort: 'high',
+        tags: ['expensive'],
     },
 
     // Z.AI models — thinking-only entry (non-thinking variant retired 2026-08-05)
@@ -792,11 +814,18 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         peakPricing: DEEPSEEK_PEAK_SCHEDULE
     },
 
-    // Kimi/Moonshot models
+    // Kimi/Moonshot models (platform.kimi.ai/docs/pricing/chat, 2026-10-23). Cache writes
+    // ($2/$4 per M for 5m/1h on Pro, $4/$8 on Highspeed) are not modelled: Moonshot caches
+    // automatically and only reports hits.
     [SupportedAiModels[LLM_CONSTANTS.KIMI].modelApiName]: {
-        inputPrice: 3.00,
-        outputPrice: 15.00,
-        cacheHitPrice: 0.30
+        inputPrice: 2.00,
+        outputPrice: 10.00,
+        cacheHitPrice: 0.20
+    },
+    [SupportedAiModels[LLM_CONSTANTS.KIMI_HIGHSPEED].modelApiName]: {
+        inputPrice: 4.00,
+        outputPrice: 20.00,
+        cacheHitPrice: 0.20
     },
 
     // Z.AI models

@@ -64,19 +64,25 @@ describe('Kimi Pricing Utils', () => {
     });
 
     describe('calculateKimiCost', () => {
-        it('should calculate cost for kimi-k3 model', () => {
-            // kimi-k3: $3.00/M input, $15.00/M output
-            const cost = calculateKimiCost('kimi-k3', 1000, 500);
+        it('should calculate cost for kimi-k3.1-pro model', () => {
+            // kimi-k3.1-pro: $2.00/M input, $10.00/M output
+            const cost = calculateKimiCost('kimi-k3.1-pro', 1000, 500);
 
-            // 1K input tokens * $3.00/M + 0.5K output tokens * $15.00/M
-            expect(cost).toBeCloseTo((1000 * 3.00 / 1000000) + (500 * 15.00 / 1000000), 5);
+            // 1K input tokens * $2.00/M + 0.5K output tokens * $10.00/M
+            expect(cost).toBeCloseTo((1000 * 2.00 / 1000000) + (500 * 10.00 / 1000000), 5);
+        });
+
+        it('bills the highspeed tier at twice the Pro rate', () => {
+            // kimi-k3.1-pro-highspeed: $4.00/M input, $20.00/M output, same $0.20 cache hit
+            const cost = calculateKimiCost('kimi-k3.1-pro-highspeed', 1000, 500);
+            expect(cost).toBeCloseTo(2 * calculateKimiCost('kimi-k3.1-pro', 1000, 500), 8);
         });
 
         it('should handle large token counts', () => {
-            const cost = calculateKimiCost('kimi-k3', 100000, 50000);
+            const cost = calculateKimiCost('kimi-k3.1-pro', 100000, 50000);
 
-            // 100K input * $3.00/M + 50K output * $15.00/M
-            expect(cost).toBeCloseTo((100000 * 3.00 / 1000000) + (50000 * 15.00 / 1000000), 5);
+            // 100K input * $2.00/M + 50K output * $10.00/M
+            expect(cost).toBeCloseTo((100000 * 2.00 / 1000000) + (50000 * 10.00 / 1000000), 5);
         });
 
         it('should handle unknown model gracefully', () => {
@@ -92,33 +98,34 @@ describe('Kimi Pricing Utils', () => {
         });
 
         it('should handle zero tokens', () => {
-            const cost = calculateKimiCost('kimi-k3', 0, 0);
+            const cost = calculateKimiCost('kimi-k3.1-pro', 0, 0);
             expect(cost).toBe(0);
         });
 
         it('should calculate fractional token costs correctly', () => {
-            const cost = calculateKimiCost('kimi-k3', 333, 777);
+            const cost = calculateKimiCost('kimi-k3.1-pro', 333, 777);
 
-            // 333 input * $3.00/M + 777 output * $15.00/M
-            const expectedCost = (333 * 3.00 / 1000000) + (777 * 15.00 / 1000000);
+            // 333 input * $2.00/M + 777 output * $10.00/M
+            const expectedCost = (333 * 2.00 / 1000000) + (777 * 10.00 / 1000000);
             expect(cost).toBeCloseTo(expectedCost, 5);
         });
 
         it('should calculate cost with cache hits (when supported)', () => {
             // Cache hits come from usage.prompt_tokens_details.cached_tokens; none passed here.
-            const cost = calculateKimiCost('kimi-k3', 1000000, 500000);
+            const cost = calculateKimiCost('kimi-k3.1-pro', 1000000, 500000);
 
-            // 1M input * $3.00/M + 0.5M output * $15.00/M (no cache)
-            expect(cost).toBeCloseTo(3.0 + 7.5, 5);
+            // 1M input * $2.00/M + 0.5M output * $10.00/M (no cache)
+            expect(cost).toBeCloseTo(2.0 + 5.0, 5);
         });
     });
 
     describe('MODEL_PRICING integration', () => {
         it('should have pricing for Kimi models', () => {
-            expect(MODEL_PRICING['kimi-k3']).toBeDefined();
-            expect(MODEL_PRICING['kimi-k3'].inputPrice).toBe(3.00);
-            expect(MODEL_PRICING['kimi-k3'].outputPrice).toBe(15.00);
-            expect(MODEL_PRICING['kimi-k3'].cacheHitPrice).toBe(0.30);
+            expect(MODEL_PRICING['kimi-k3.1-pro']).toBeDefined();
+            expect(MODEL_PRICING['kimi-k3.1-pro'].inputPrice).toBe(2.00);
+            expect(MODEL_PRICING['kimi-k3.1-pro'].outputPrice).toBe(10.00);
+            expect(MODEL_PRICING['kimi-k3.1-pro'].cacheHitPrice).toBe(0.20);
+            expect(MODEL_PRICING['kimi-k3.1-pro-highspeed']).toEqual({ inputPrice: 4.00, outputPrice: 20.00, cacheHitPrice: 0.20 });
         });
     });
 });
