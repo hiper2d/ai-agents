@@ -78,7 +78,7 @@ export class Gpt5Agent extends AbstractAgent {
      * nowhere to put reasoning items. The system prompt still travels ONLY as `instructions`.
      *
      * Reasoning is readable only within one model family and the API silently omits items it
-     * cannot read, so a bot moved between GPT-6 and GPT-5.6 Terra loses its reasoning and keeps
+     * cannot read, so a bot moved between GPT-6 and a GPT-5.6 model loses its reasoning and keeps
      * working. A bot moved to another provider never reaches this code at all: every agent
      * reads only its own field, and a missing one falls back to a plain message.
      */

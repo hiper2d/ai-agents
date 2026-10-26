@@ -261,6 +261,9 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // slot largely redundant — retiring it is a product call, not a catalog one.
     // Sol → GPT-6.1 Sol on 2026-09-29 (id verified against GET /v1/models; gpt-6-sol is still
     // served). Same price as GPT-6 Sol; its no-param default effort still measures `medium`.
+    // Terra → GPT-6.1 Terra on 2026-10-26 (id verified against GET /v1/models; gpt-5.6-terra is
+    // still served). Half the price of 5.6 Terra ($2/$12 → $1/$5) and back in its place below
+    // Sol. Its no-param default effort measures `medium`, like its siblings.
     [LLM_CONSTANTS.GPT_SOL]: {
         displayName: 'GPT-6.1 Sol',
         modelApiName: 'gpt-6.1-sol',
@@ -271,8 +274,8 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         tags: ['expensive'],
     },
     [LLM_CONSTANTS.GPT]: {
-        displayName: 'GPT-5.6 Terra',
-        modelApiName: 'gpt-5.6-terra',
+        displayName: 'GPT-6.1 Terra',
+        modelApiName: 'gpt-6.1-terra',
         apiKeyName: API_KEY_CONSTANTS.OPENAI,
         reasoningEffort: 'medium',
         hasThinking: true,
@@ -757,30 +760,37 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         extendedContextThresholdTokens: 272_000
     },
 
-    // OpenAI GPT-6 Sol and GPT-6 Luna (developers.openai.com/api/docs/pricing, read 2026-09-22),
-    // plus GPT-5.6 Terra, which has no GPT-6 successor and keeps its old rates.
+    // OpenAI GPT-6 Sol and GPT-6 Luna (developers.openai.com/api/docs/pricing, read 2026-09-22).
     // Sol: $2/$10 short, $4/$15 long, cache hits $0.20/$0.40 — half what GPT-5.6 Sol cost.
     // Luna: $0.10/$0.50 short, $0.20/$0.75 long, cache hits $0.01/$0.02 — also halved.
     // As with Astra, OpenAI's table doesn't restate the short/long boundary, so we keep the
     // 272k threshold the 5.6 siblings use. Cache WRITES (Sol $2.50/$5, Luna $0.125/$0.25) are
     // not modelled: OpenAI caching is automatic and the API only reports hits.
     // GPT-6.1 Sol (2026-09-29) kept GPT-6 Sol's rates exactly, cache writes included.
+    // Re-read 2026-10-26 with the Terra launch: the page now lists Sol's cache hit at $0.10
+    // (5% of input, the same share as Terra), not the $0.20 recorded on 2026-09-22; Astra and
+    // Luna still show 10%. Followed the page.
     [SupportedAiModels[LLM_CONSTANTS.GPT_SOL].modelApiName]: {
         inputPrice: 2.000,
         outputPrice: 10.000,
-        cacheHitPrice: 0.200,
+        cacheHitPrice: 0.100,
         extendedContextInputPrice: 4.000,
         extendedContextOutputPrice: 15.000,
-        extendedContextCacheHitPrice: 0.400,
+        extendedContextCacheHitPrice: 0.200,
         extendedContextThresholdTokens: 272_000
     },
+    // GPT-6.1 Terra (developers.openai.com/api/docs/pricing, read 2026-10-26): $1/$5 short,
+    // cache hits $0.05 (5% of input, like 6.1 Sol), 30m/12h cache writes $1.25/$2.50 — not
+    // modelled, see above. The page's "Long" tab is rendered client-side and embeds no 6.x
+    // rows, so the long-context rates follow the family rule every other entry here uses
+    // (2x input, 1.5x output, 2x cache hit) over the same 272k threshold.
     [SupportedAiModels[LLM_CONSTANTS.GPT].modelApiName]: {
-        inputPrice: 2.000,
-        outputPrice: 12.000,
-        cacheHitPrice: 0.200,
-        extendedContextInputPrice: 4.000,
-        extendedContextOutputPrice: 18.000,
-        extendedContextCacheHitPrice: 0.400,
+        inputPrice: 1.000,
+        outputPrice: 5.000,
+        cacheHitPrice: 0.050,
+        extendedContextInputPrice: 2.000,
+        extendedContextOutputPrice: 7.500,
+        extendedContextCacheHitPrice: 0.100,
         extendedContextThresholdTokens: 272_000
     },
     [SupportedAiModels[LLM_CONSTANTS.GPT_MINI].modelApiName]: {
