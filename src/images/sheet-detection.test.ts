@@ -3,7 +3,7 @@
  * likes, so the cells are read off the pixels rather than assumed equal.
  */
 
-import { describeDividers, detectSheetGrid, equalSplitGrid, findDividers, GreyPlane } from './sheet-detection';
+import { confirmGrid, describeDividers, detectSheetGrid, equalSplitGrid, findDividers, GreyPlane } from './sheet-detection';
 
 /** A synthetic sheet: light cells, near-black divider lines at the given
  * positions (each `thickness` px), plus a 3px border frame. */
@@ -96,6 +96,16 @@ describe('findDividers', () => {
             expect(grid.cells[6].left).toBe(210);
         });
 
+        it('does not confirm a faint sketchy line that barely contrasts with its cells', () => {
+            // A broken grey line at 50 (80% of its length) between cells at 65: under the
+            // full share, and only 12 darker than the cells — not a boundary.
+            const plane = sheet(1000, 600, [200, 400], [200, 400, 600, 800], 3);
+            breakLines(plane, 5);
+            for (let i = 0; i < plane.data.length; i++) if (plane.data[i] === 150) plane.data[i] = 65;
+            for (let i = 0; i < plane.data.length; i++) if (plane.data[i] === 20) plane.data[i] = 50;
+            expect(confirmGrid(plane, 5, 3)).toBeNull();
+        });
+
         it('keeps a row line with dark shoulders above it', () => {
             // The previous row's clothing reaches the line across 70% of the width;
             // the next row's headroom below it is clear.
@@ -103,6 +113,58 @@ describe('findDividers', () => {
             for (let y = 150; y < 200; y++) for (let x = 60; x < 340; x++) plane.data[y * 400 + x] = 30;
             expect(findDividers(plane).rows).toEqual([{ start: 200, end: 205 }]);
         });
+    });
+});
+
+/** Every `every`-th pixel of a line pixel (value `line`) becomes the
+ * background: a sketchy ink stroke that covers only part of its length. */
+function breakLines(plane: GreyPlane, every: number, line = 20, background = 150): void {
+    const {width, height, data} = plane;
+    for (let y = 3; y < height - 3; y++) for (let x = 3; x < width - 3; x++) {
+        if (data[y * width + x] !== line) continue;
+        if ((x + y) % every === 0) data[y * width + x] = background;
+    }
+}
+
+describe('confirmGrid with sketchy ink lines (Nano Banana 2.1, 2026-10-25)', () => {
+    it('confirms a grid whose thin broken lines cover only 80% of their length', () => {
+        // 3 px lines with every fifth pixel missing: dark share 0.8, under
+        // GRID_LINE_SHARE. Backgrounds at 150 make them stand out.
+        const plane = sheet(1000, 600, [200, 400], [200, 400, 600, 800], 3);
+        breakLines(plane, 5);
+        const grid = confirmGrid(plane, 5, 3);
+        expect(grid).not.toBeNull();
+        expect(grid!.cells).toHaveLength(15);
+        expect(grid!.cells[1].left).toBe(207);
+        expect(grid!.cells[5].top).toBe(207);
+    });
+
+    it('confirms a grid of thin ink borders along paper gutters', () => {
+        // 2 px broken ink lines on both sides of a 12 px bright gutter (230) between
+        // muted cells (120): the treasure-island sheet.
+        const plane = sheet(1000, 600, [], [], 0);
+        for (let i = 0; i < plane.data.length; i++) if (plane.data[i] === 150) plane.data[i] = 120;
+        const paint = (axis: 'rows' | 'cols', at: number, thickness: number, value: number) => {
+            for (let t = 0; t < thickness; t++) for (let k = 3; k < (axis === 'rows' ? 1000 : 600) - 3; k++) {
+                const idx = axis === 'rows' ? (at + t) * 1000 + k : k * 1000 + at + t;
+                plane.data[idx] = value;
+            }
+        };
+        for (const x of [194, 394, 594, 794]) { paint('cols', x, 2, 20); paint('cols', x + 2, 12, 230); paint('cols', x + 14, 2, 20); }
+        for (const y of [194, 394]) { paint('rows', y, 2, 20); paint('rows', y + 2, 12, 230); paint('rows', y + 14, 2, 20); }
+        breakLines(plane, 6);
+        const grid = confirmGrid(plane, 5, 3);
+        expect(grid).not.toBeNull();
+        expect(grid!.cells).toHaveLength(15);
+        // The cells sit inside the ink, whichever stroke the confirmation picked.
+        expect(grid!.cells[1].left).toBeGreaterThanOrEqual(198);
+        expect(grid!.cells[1].left).toBeLessThanOrEqual(214);
+    });
+
+    it('still ignores a sketchy line that is too faint to count at all', () => {
+        const plane = sheet(1000, 600, [200, 400], [200, 400, 600, 800], 3);
+        breakLines(plane, 2); // half the pixels gone: share 0.5
+        expect(confirmGrid(plane, 5, 3)).toBeNull();
     });
 });
 

@@ -59,6 +59,15 @@ const FLANK_TO = 15;
 // that check goes through the general line search below.
 const GRID_LINE_TOLERANCE = 0.08;
 const GRID_LINE_SHARE = 0.9;
+// Nano Banana 2.1 also draws sketchy ink borders 2-3 px thin with gaps
+// (2026-10-25): on two correct sheets the lines measured 0.79-0.88 dark
+// across their length, one line under GRID_LINE_SHARE was enough to fail
+// the confirmation, and the general search then read a 5x3 sheet as 2x2 —
+// three portraits cut from the wrong rectangles. A line this sketchy is
+// still accepted when it is darker than the brighter of its flanks by
+// LINE_CONTRAST (the cell background, or the paper gutter beside it); a
+// dark art style, where lines barely contrast, still needs the full share.
+const SKETCH_LINE_SHARE = 0.7;
 // A scanline next to a confirmed line belongs to it only when its mean is
 // within this of the line's: a name plate (15 vs a 20 line) does, the dark
 // top of a space-station cell (40 vs a 2 line) does not.
@@ -244,7 +253,8 @@ function scanlines(plane: GreyPlane, axis: 'rows' | 'cols'): Scanlines {
  * dark as it, near enough — the stroke and a name plate hugging it, not the
  * dark cell top beside it. Where even that is too thick to be a line (a
  * black art style all around) the line is a 7 px stroke at the darkest
- * scanline. */
+ * scanline. A sketchy line (SKETCH_LINE_SHARE) counts only when the run
+ * stands out from the brighter of its flanks. */
 function lineNear(lines: Scanlines, position: number, tolerance: number, maxThickness: number): Run | null {
     const {shares, means} = lines;
     const extent = shares.length;
@@ -252,13 +262,34 @@ function lineNear(lines: Scanlines, position: number, tolerance: number, maxThic
     const hi = Math.min(extent - 4, Math.round(position + tolerance));
     let at = -1;
     for (let i = lo; i <= hi; i++) if (at < 0 || shares[i] > shares[at] || (shares[i] === shares[at] && means[i] < means[at])) at = i;
-    if (at < 0 || shares[at] < GRID_LINE_SHARE) return null;
-    const partOfLine = (i: number) => shares[i] >= GRID_LINE_SHARE && means[i] <= means[at] + LINE_MEAN_MARGIN;
+    if (at < 0 || shares[at] < SKETCH_LINE_SHARE) return null;
+    const minShare = shares[at] >= GRID_LINE_SHARE ? GRID_LINE_SHARE : SKETCH_LINE_SHARE;
+    const partOfLine = (i: number) => shares[i] >= minShare && means[i] <= means[at] + LINE_MEAN_MARGIN;
     let start = at, end = at;
     while (start - 1 >= 3 && partOfLine(start - 1)) start--;
     while (end + 1 <= extent - 4 && partOfLine(end + 1)) end++;
-    if (end - start + 1 > maxThickness) return {start: Math.max(3, at - 3), end: Math.min(extent - 4, at + 3)};
-    return {start, end};
+    const run = end - start + 1 > maxThickness
+        ? {start: Math.max(3, at - 3), end: Math.min(extent - 4, at + 3)}
+        : {start, end};
+    if (minShare === SKETCH_LINE_SHARE && !standsOutByMean(lines, run)) return null;
+    return run;
+}
+
+/** Whether a run is darker than the brighter of its flanks (the scanline
+ * means over the same window lineRuns uses) by LINE_CONTRAST. */
+function standsOutByMean(lines: Scanlines, run: Run): boolean {
+    const {means} = lines;
+    const extent = means.length;
+    const clamp = (i: number) => Math.min(extent - 1, Math.max(0, i));
+    const flank = (from: number, dir: -1 | 1): number => {
+        let sum = 0;
+        for (let d = FLANK_FROM - 1; d <= FLANK_TO - 1; d++) sum += means[clamp(from + dir * d)];
+        return sum / (FLANK_TO - FLANK_FROM + 1);
+    };
+    let sum = 0;
+    for (let i = run.start; i <= run.end; i++) sum += means[i];
+    const runMean = sum / (run.end - run.start + 1);
+    return runMean < Math.max(flank(run.start - 1, -1), flank(run.end + 1, 1)) - LINE_CONTRAST;
 }
 
 /** The requested grid confirmed on the pixels: a dark line near every
