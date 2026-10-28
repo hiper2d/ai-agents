@@ -1,4 +1,5 @@
 import { AbstractAgent } from "./abstract-agent";
+import { ModelError, ModelInvalidResponseError } from "../errors";
 import { mergeThinking, stripInlineThinking } from "../thinking-utils";
 import { OpenAI } from "openai";
 import { AIMessage, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
@@ -129,7 +130,7 @@ export class MiniMaxAgent extends AbstractAgent {
      * Returns the validated value or throws.
      */
     private parseAndValidate<T>(rawReply: string, zodSchema: z.ZodSchema<T>): T {
-        return parseAndValidateLlmJson(rawReply, zodSchema, (m) => this.logger(m));
+        return parseAndValidateLlmJson(rawReply, zodSchema, (m) => this.logger(m), this.model);
     }
 
     async doAskWithZodSchema<T>(zodSchema: z.ZodSchema<T>, messages: AIMessage[]): Promise<[T, string, TokenUsage?, string?]> {
@@ -173,7 +174,7 @@ export class MiniMaxAgent extends AbstractAgent {
 
             const reply = completion.choices[0]?.message?.content;
             if (!reply) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             const { text: cleanReply, thinking: inlineThinking } = stripInlineThinking(reply);
@@ -192,6 +193,7 @@ export class MiniMaxAgent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) throw error;
             throw new Error(this.errorMessages.apiError(error));
         }
     }
@@ -233,12 +235,12 @@ export class MiniMaxAgent extends AbstractAgent {
 
             const reply = completion.choices[0]?.message?.content;
             if (!reply) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             const { text: cleanReply, thinking: inlineThinking } = stripInlineThinking(reply);
             if (!cleanReply) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             const { thinkingContent: reasoningContent, tokenUsage } = this.extractThinkingAndUsage(completion);
@@ -250,6 +252,7 @@ export class MiniMaxAgent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) throw error;
             throw new Error(this.errorMessages.apiError(error));
         }
     }

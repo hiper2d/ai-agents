@@ -74,16 +74,22 @@ export class ModelQuotaExceededError extends ModelError {
 }
 
 /**
- * The model failed to produce a valid response: the output was malformed (unparseable
- * JSON from a structured-output ask) or cut off at the output-token cap before the
- * answer was complete (`status: "incomplete"` on the OpenAI Responses API). Not a
- * transport or availability problem — the request worked, the generation went wrong.
- * A retry with the same prompt often succeeds; `truncated` distinguishes a cap hit
- * (raise maxOutputTokens if legitimate responses genuinely need more room) from a
- * degenerate/runaway generation (a bigger cap only makes failures slower).
+ * The model failed to produce a valid response: the completion was empty (no usable
+ * text at all — every agent's empty-content guard throws this), the output was malformed
+ * (unparseable JSON, or JSON that fails the schema, from a structured-output ask), or it
+ * was cut off at the output-token cap before the answer was complete (`status:
+ * "incomplete"` on the OpenAI Responses API). Not a transport or availability problem —
+ * the request worked, the generation went wrong. A retry with the same prompt often
+ * succeeds, which is what `AbstractAgent.invalidResponseRetries` automates; `truncated`
+ * distinguishes a cap hit (raise maxOutputTokens if legitimate responses genuinely need
+ * more room; never auto-retried, since re-running it re-buys the whole output) from a
+ * degenerate/runaway generation (a bigger cap only makes failures slower). `retries` is
+ * stamped by the agent on the error it finally throws: how many automatic re-sends
+ * preceded it (absent when none).
  */
 export class ModelInvalidResponseError extends ModelError {
     public truncated: boolean;
+    public retries?: number;
 
     constructor(
         modelType: string,

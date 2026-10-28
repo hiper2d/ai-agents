@@ -1,4 +1,4 @@
-import { ModelError, ModelRefusalError } from "../errors";
+import { ModelError, ModelRefusalError, ModelInvalidResponseError } from "../errors";
 import { toAnthropicEffort } from "../reasoning-effort";
 import { AbstractAgent } from "./abstract-agent";
 import { AIMessage, BotResponseError, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
@@ -370,7 +370,7 @@ export class ClaudeAgent extends AbstractAgent {
                 throw new ModelRefusalError(this.model, undefined, 'refusal');
             }
             if (!('content' in response) || !Array.isArray(response.content) || response.content.length === 0) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             // Handle thinking content if present and find text content
@@ -395,14 +395,14 @@ export class ClaudeAgent extends AbstractAgent {
             }
 
             if (!textContent) {
-                throw new Error(this.errorMessages.invalidFormat);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.invalidFormat);
             }
 
             // The text block is the schema-shaped JSON. Validate it on our side anyway: same
             // lenient parser and error wording as every other agent, so a host's retry hints
             // keep matching, and a defence for a reply the format did not constrain (e.g. a
             // max_tokens cut mid-object).
-            const parsedData = parseAndValidateLlmJson(textContent, zodSchema, (m) => this.logger(m));
+            const parsedData = parseAndValidateLlmJson(textContent, zodSchema, (m) => this.logger(m), this.model);
 
             this.logger(`✅ Response validated successfully with Zod schema`);
 
@@ -516,7 +516,7 @@ export class ClaudeAgent extends AbstractAgent {
                 throw new ModelRefusalError(this.model, undefined, 'refusal');
             }
             if (!('content' in response) || !Array.isArray(response.content) || response.content.length === 0) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             // Extract thinking and concatenate all text blocks
@@ -539,7 +539,7 @@ export class ClaudeAgent extends AbstractAgent {
 
             const textContent = textParts.join('');
             if (!textContent) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             let tokenUsage: TokenUsage | undefined;

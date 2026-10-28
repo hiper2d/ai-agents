@@ -1,4 +1,5 @@
 import { AbstractAgent } from "./abstract-agent";
+import { ModelError, ModelInvalidResponseError } from "../errors";
 import { toFuguEffort } from "../reasoning-effort";
 import { mergeThinking, stripInlineThinking } from "../thinking-utils";
 import { OpenAI } from "openai";
@@ -144,15 +145,15 @@ export class FuguAgent extends AbstractAgent {
 
             const rawReply = completion.choices[0]?.message?.content;
             if (!rawReply) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             const { text: reply, thinking: inlineThinking } = stripInlineThinking(rawReply);
             if (!reply) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
-            const validated = parseAndValidateLlmJson(reply, zodSchema, (m) => this.logger(m));
+            const validated = parseAndValidateLlmJson(reply, zodSchema, (m) => this.logger(m), this.model);
 
             this.logger(`✅ Response validated successfully with Zod schema`);
 
@@ -167,6 +168,7 @@ export class FuguAgent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) throw error;
             throw new Error(this.errorMessages.apiError(error));
         }
     }
@@ -198,12 +200,12 @@ export class FuguAgent extends AbstractAgent {
 
             const rawReply = completion.choices[0]?.message?.content;
             if (!rawReply) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             const { text: reply, thinking: inlineThinking } = stripInlineThinking(rawReply);
             if (!reply) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             const { thinkingContent: reasoningContent, tokenUsage } = this.extractThinkingAndUsage(completion);
@@ -215,6 +217,7 @@ export class FuguAgent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) throw error;
             throw new Error(this.errorMessages.apiError(error));
         }
     }

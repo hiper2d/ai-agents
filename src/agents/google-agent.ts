@@ -72,7 +72,7 @@ export function throwForEmptyGeminiResponse(model: string, response: any, fallba
     const bits = [`finishReason=${finishReason ?? 'none'}`];
     if (!response?.candidates?.length) bits.push('no candidates');
     if (finishMessage) bits.push(`finishMessage="${finishMessage}"`);
-    throw new Error(`${fallback} (${bits.join(', ')})`);
+    throw new ModelInvalidResponseError(model, `${fallback} (${bits.join(', ')})`);
 }
 
 export class GoogleAgent extends AbstractAgent {
@@ -348,7 +348,7 @@ export class GoogleAgent extends AbstractAgent {
 
             // Parse and validate the response using the shared lenient parser
             // (handles Gemini's quoted-JSON-string quirk internally)
-            const parsedData = parseAndValidateLlmJson(response.text, zodSchema, (m) => this.logger(m));
+            const parsedData = parseAndValidateLlmJson(response.text, zodSchema, (m) => this.logger(m), this.model);
 
             if (parsedData) {
                 this.logReply(parsedData, thinkingContent || undefined, tokenUsage);

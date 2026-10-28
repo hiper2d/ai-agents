@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { logger } from "../logger";
 import { CACHE_TIER_MARKER } from "../cache-tier";
 import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_REQUEST_TIMEOUT_MS, getModelConfigByApiName, ReasoningEffort } from "../catalog";
-import { ModelTimeoutError } from "../errors";
+import { ModelInvalidResponseError, ModelTimeoutError } from "../errors";
 
 /**
  * Runs before every ask on every LLM agent, with the agent about to call the provider.
@@ -18,6 +18,30 @@ let beforeAskHook: BeforeAskHook | undefined;
 /** Install (or clear, with no argument) the process-wide pre-ask hook. Call once at startup. */
 export function setBeforeAskHook(hook?: BeforeAskHook): void {
     beforeAskHook = hook;
+}
+
+/** Awaited once the ask a retry belonged to has settled (answered, or about to throw). */
+export type RetrySettledFn = () => void | Promise<void>;
+
+/**
+ * Runs right before an ask is re-sent after an empty or malformed response (see
+ * `AbstractAgent.invalidResponseRetries`); `attempt` counts retries from 1. The intended
+ * use is a UI notice ("the model returned nothing, asking again"): return a function and it
+ * is awaited when the whole ask settles, so the notice can be taken down again. A throwing
+ * hook is logged and ignored — it never stops the retry. Async hooks are awaited.
+ */
+export type RetryHook = (info: {
+    agent: AbstractAgent;
+    model: string;
+    error: ModelInvalidResponseError;
+    attempt: number;
+}) => void | RetrySettledFn | Promise<void | RetrySettledFn>;
+
+let retryHook: RetryHook | undefined;
+
+/** Install (or clear, with no argument) the process-wide retry hook. Call once at startup. */
+export function setRetryHook(hook?: RetryHook): void {
+    retryHook = hook;
 }
 
 export abstract class AbstractAgent {
@@ -46,6 +70,17 @@ export abstract class AbstractAgent {
      * instance for calls that legitimately run long, like maxOutputTokens.
      */
     requestTimeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS;
+    /**
+     * How many times one ask is re-sent after a ModelInvalidResponseError that is not a
+     * cap hit: the model answered with nothing, or with text that is not the JSON the
+     * schema asked for. Those are one-off generation failures the same prompt usually
+     * gets right on the next try, unlike timeouts, refusals and transport errors, which
+     * are never retried here. 0 (the default) hands every failure to the caller. A
+     * truncated response is excluded because re-running it re-buys the whole output at
+     * the cap. Each re-send runs the before-ask hook again (it is a new paid call) and
+     * fires the retry hook; the error finally thrown carries `retries`.
+     */
+    invalidResponseRetries: number = 0;
     protected readonly instruction: string;
     /**
      * The instruction split on CACHE_TIER_MARKER: [shared static tier, per-bot tier].
@@ -83,28 +118,83 @@ export abstract class AbstractAgent {
     }
 
     /**
-     * Public ask API — template methods that time the provider call and stamp `durationMs`
-     * into the returned TokenUsage. Subclasses implement doAskWithZodSchema/doAskText and
+     * Public ask API — template methods that run the before-ask hook, time the provider
+     * call, stamp `durationMs` into the returned TokenUsage and apply the
+     * invalidResponseRetries policy. Subclasses implement doAskWithZodSchema/doAskText and
      * must NOT override these.
      */
     async askWithZodSchema<T>(zodSchema: z.ZodSchema<T>, messages: AIMessage[]): Promise<[T, string, TokenUsage?, string?]> {
-        if (beforeAskHook) await beforeAskHook(this);
-        const startedAt = Date.now();
-        try {
-            const [result, thinking, usage, signature] = await this.withTimeout(this.doAskWithZodSchema(zodSchema, messages));
-            return [result, thinking, this.stampDuration(usage, startedAt), signature];
-        } catch (error) {
-            this.stampErrorDuration(error, startedAt);
-            throw error;
-        }
+        return this.askWithRetries(() => this.doAskWithZodSchema(zodSchema, messages));
     }
 
     async askText(messages: AIMessage[]): Promise<[string, string, TokenUsage?, string?]> {
+        return this.askWithRetries(() => this.doAskText(messages));
+    }
+
+    /**
+     * One attempt per loop; an empty or malformed answer (ModelInvalidResponseError, not
+     * truncated) is re-sent up to invalidResponseRetries times, with the retry hook told
+     * before each re-send. Anything else — a timeout, a refusal, a transport error, or the
+     * last allowed attempt failing — is thrown as-is, stamped with the retry count. Every
+     * settle function the hook returned runs once the ask is over, whichever way it ended.
+     */
+    private async askWithRetries<R extends [unknown, string, TokenUsage?, string?]>(call: () => Promise<R>): Promise<R> {
+        const settled: RetrySettledFn[] = [];
+        let retries = 0;
+        try {
+            while (true) {
+                try {
+                    return await this.attempt(call);
+                } catch (error) {
+                    if (retries > 0 && error && typeof error === 'object') {
+                        (error as { retries?: number }).retries = retries;
+                    }
+                    if (!(error instanceof ModelInvalidResponseError) || error.truncated || retries >= this.invalidResponseRetries) {
+                        throw error;
+                    }
+                    retries++;
+                    logger.warn(`${this.name} (${this.model}): ${error.message} — asking again (retry ${retries} of ${this.invalidResponseRetries})`, {
+                        gameId: this.gameId,
+                        userId: this.userId,
+                        agentName: this.name,
+                        model: this.model,
+                        activity: 'llm_retry',
+                        attempt: retries,
+                        error: error.message,
+                    });
+                    if (retryHook) {
+                        try {
+                            const onSettled = await retryHook({ agent: this, model: this.model, error, attempt: retries });
+                            if (typeof onSettled === 'function') settled.push(onSettled);
+                        } catch (hookError) {
+                            logger.warn(`${this.name} (${this.model}): retry hook failed, retrying anyway`, {
+                                gameId: this.gameId, agentName: this.name, model: this.model,
+                                error: hookError instanceof Error ? hookError.message : String(hookError),
+                            });
+                        }
+                    }
+                }
+            }
+        } finally {
+            for (const onSettled of settled) {
+                try {
+                    await onSettled();
+                } catch (hookError) {
+                    logger.warn(`${this.name} (${this.model}): retry settle hook failed`, {
+                        gameId: this.gameId, agentName: this.name, model: this.model,
+                        error: hookError instanceof Error ? hookError.message : String(hookError),
+                    });
+                }
+            }
+        }
+    }
+
+    private async attempt<R extends [unknown, string, TokenUsage?, string?]>(call: () => Promise<R>): Promise<R> {
         if (beforeAskHook) await beforeAskHook(this);
         const startedAt = Date.now();
         try {
-            const [content, thinking, usage, signature] = await this.withTimeout(this.doAskText(messages));
-            return [content, thinking, this.stampDuration(usage, startedAt), signature];
+            const [content, thinking, usage, signature] = await this.withTimeout(call());
+            return [content, thinking, this.stampDuration(usage, startedAt), signature] as unknown as R;
         } catch (error) {
             this.stampErrorDuration(error, startedAt);
             throw error;

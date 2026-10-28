@@ -1,4 +1,5 @@
 import {AbstractAgent} from "./abstract-agent";
+import { ModelError, ModelInvalidResponseError } from "../errors";
 import { stableHashHex } from "../text-utils";
 import { toXaiEffort } from "../reasoning-effort";
 import {OpenAI} from "openai";
@@ -78,13 +79,13 @@ export class GrokAgent extends AbstractAgent {
             const response = await this.createResponse(input, true);
             const { text, reasoningSummary, encryptedReasoning } = this.extractResponseParts(response);
             if (!text) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             this.logger(`Grok Agent - Found reasoning summary: ${!!reasoningSummary}, encrypted reasoning: ${!!encryptedReasoning}`);
 
             // Parse and validate the response using the shared lenient parser
-            const parsedData = parseAndValidateLlmJson(text, zodSchema, (m) => this.logger(m));
+            const parsedData = parseAndValidateLlmJson(text, zodSchema, (m) => this.logger(m), this.model);
 
             this.logger(`✅ Response validated successfully with Zod schema`);
 
@@ -98,6 +99,7 @@ export class GrokAgent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) throw error;
             throw new Error(this.errorMessages.apiError(error));
         }
     }
@@ -116,7 +118,7 @@ export class GrokAgent extends AbstractAgent {
             const response = await this.createResponse(input, false);
             const { text, reasoningSummary, encryptedReasoning } = this.extractResponseParts(response);
             if (!text) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             const tokenUsage = this.extractTokenUsage(response);
@@ -127,6 +129,7 @@ export class GrokAgent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) throw error;
             throw new Error(this.errorMessages.apiError(error));
         }
     }

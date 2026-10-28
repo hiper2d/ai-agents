@@ -1,4 +1,5 @@
 import { AbstractAgent } from "./abstract-agent";
+import { ModelError, ModelInvalidResponseError } from "../errors";
 import { toGlmEffort } from "../reasoning-effort";
 import { mergeThinking, stripInlineThinking } from "../thinking-utils";
 import { OpenAI } from "openai";
@@ -110,7 +111,7 @@ export class GlmAgent extends AbstractAgent {
      * Returns the validated value or throws.
      */
     private parseAndValidate<T>(rawReply: string, zodSchema: z.ZodSchema<T>): T {
-        return parseAndValidateLlmJson(rawReply, zodSchema, (m) => this.logger(m));
+        return parseAndValidateLlmJson(rawReply, zodSchema, (m) => this.logger(m), this.model);
     }
 
     async doAskWithZodSchema<T>(zodSchema: z.ZodSchema<T>, messages: AIMessage[]): Promise<[T, string, TokenUsage?, string?]> {
@@ -155,12 +156,12 @@ export class GlmAgent extends AbstractAgent {
 
             const rawReply = completion.choices[0]?.message?.content;
             if (!rawReply) {
-                throw new Error(this.errorMessages.emptyResponse(completion.choices[0]?.finish_reason));
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse(completion.choices[0]?.finish_reason));
             }
 
             const { text: reply, thinking: inlineThinking } = stripInlineThinking(rawReply);
             if (!reply) {
-                throw new Error(this.errorMessages.emptyResponse(completion.choices[0]?.finish_reason));
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse(completion.choices[0]?.finish_reason));
             }
 
             const validated = this.parseAndValidate(reply, zodSchema);
@@ -178,6 +179,7 @@ export class GlmAgent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) throw error;
             throw new Error(this.errorMessages.apiError(error));
         }
     }
@@ -218,12 +220,12 @@ export class GlmAgent extends AbstractAgent {
 
             const rawReply = completion.choices[0]?.message?.content;
             if (!rawReply) {
-                throw new Error(this.errorMessages.emptyResponse(completion.choices[0]?.finish_reason));
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse(completion.choices[0]?.finish_reason));
             }
 
             const { text: reply, thinking: inlineThinking } = stripInlineThinking(rawReply);
             if (!reply) {
-                throw new Error(this.errorMessages.emptyResponse(completion.choices[0]?.finish_reason));
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse(completion.choices[0]?.finish_reason));
             }
 
             const { thinkingContent: reasoningContent, tokenUsage } = this.extractThinkingAndUsage(completion);
@@ -235,6 +237,7 @@ export class GlmAgent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) throw error;
             throw new Error(this.errorMessages.apiError(error));
         }
     }

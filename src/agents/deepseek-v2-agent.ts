@@ -1,4 +1,5 @@
 import { AbstractAgent } from "./abstract-agent";
+import { ModelError, ModelInvalidResponseError } from "../errors";
 import { toDeepSeekEffort } from "../reasoning-effort";
 import { mergeThinking, stripInlineThinking } from "../thinking-utils";
 import OpenAI from "openai";
@@ -19,7 +20,8 @@ export class DeepSeekV2Agent extends AbstractAgent {
 
     // Error message templates
     private readonly errorMessages = {
-        emptyResponse: 'Empty or undefined response from DeepSeek API',
+        emptyResponse: (finishReason: string | undefined) =>
+            `Empty or undefined response from DeepSeek API (finish_reason: ${finishReason ?? 'unknown'})`,
         invalidFormat: 'Invalid response format from DeepSeek API',
         apiError: (error: unknown) =>
             `Failed to get response from DeepSeek API: ${error instanceof Error ? error.message : String(error)}`,
@@ -159,17 +161,17 @@ export class DeepSeekV2Agent extends AbstractAgent {
 
             const rawContent = response.choices[0]?.message?.content;
             if (!rawContent) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse(response.choices[0]?.finish_reason));
             }
 
             const { text: content, thinking: inlineThinking } = stripInlineThinking(rawContent);
             thinkingContent = mergeThinking(thinkingContent, inlineThinking);
             if (!content) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse(response.choices[0]?.finish_reason));
             }
 
             // Parse and validate the response using the shared lenient parser
-            const parsedData = parseAndValidateLlmJson(content, zodSchema, (m) => this.logger(m));
+            const parsedData = parseAndValidateLlmJson(content, zodSchema, (m) => this.logger(m), this.model);
 
             this.logger(`✅ Response validated successfully with Zod schema`);
 
@@ -197,6 +199,7 @@ export class DeepSeekV2Agent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) throw error;
             throw new Error(this.errorMessages.apiError(error));
         }
     }
@@ -242,13 +245,13 @@ export class DeepSeekV2Agent extends AbstractAgent {
 
             const rawContent = response.choices[0]?.message?.content;
             if (!rawContent) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse(response.choices[0]?.finish_reason));
             }
 
             const { text: content, thinking: inlineThinking } = stripInlineThinking(rawContent);
             thinkingContent = mergeThinking(thinkingContent, inlineThinking);
             if (!content) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse(response.choices[0]?.finish_reason));
             }
 
             // Extract token usage and calculate cost
@@ -273,6 +276,7 @@ export class DeepSeekV2Agent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) throw error;
             throw new Error(this.errorMessages.apiError(error));
         }
     }

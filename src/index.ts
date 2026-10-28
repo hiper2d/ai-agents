@@ -88,8 +88,8 @@ export * from './voice';
 export * from './budget';
 
 // Agents
-export { AbstractAgent, setBeforeAskHook } from './agents/abstract-agent';
-export type { BeforeAskHook } from './agents/abstract-agent';
+export { AbstractAgent, setBeforeAskHook, setRetryHook } from './agents/abstract-agent';
+export type { BeforeAskHook, RetryHook, RetrySettledFn } from './agents/abstract-agent';
 export { AgentFactory } from './agents/agent-factory';
 export { ClaudeAgent } from './agents/anthropic-agent';
 export { Gpt5Agent } from './agents/gpt-5-agent';

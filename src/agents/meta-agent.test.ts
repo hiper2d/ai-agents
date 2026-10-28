@@ -1,4 +1,5 @@
 import { AIMessage } from '../types';
+import { ModelInvalidResponseError } from '../errors';
 import { SILENT_LOGGING, ReplySchema } from '../testing/fixtures';
 import { MetaAgent } from './meta-agent';
 import { LLM_CONSTANTS, SupportedAiModels, MODEL_PRICING } from '../catalog';
@@ -123,9 +124,11 @@ describe('MetaAgent response handling', () => {
         expect(captured.params.input.some((i: any) => i.type === 'reasoning')).toBe(false);
     });
 
-    it('an empty output surfaces as the agent\'s wrapped error', async () => {
+    it('an empty output surfaces as ModelInvalidResponseError, unwrapped', async () => {
         const { agent } = makeAgent({ output: [reasoningItem], usage });
-        await expect(agent.askText(MESSAGES)).rejects.toThrow('Failed to get response from Meta API: Empty or undefined response from Meta API');
+        const err = await agent.askText(MESSAGES).catch(e => e);
+        expect(err).toBeInstanceOf(ModelInvalidResponseError);
+        expect(err.message).toMatch(/failed to produce a valid response: Empty or undefined response from Meta API$/);
     });
 
     it('a provider error is wrapped with the Meta prefix', async () => {

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { cleanResponse } from './text-utils';
 import { safeValidateResponse } from './zod-validate';
+import { ModelInvalidResponseError } from './errors';
 
 /**
  * Extract the first balanced JSON object embedded in `text`.
@@ -78,7 +79,8 @@ function normalizeNestedReply(value: unknown, log: (message: string) => void): u
 export function parseAndValidateLlmJson<T>(
     rawReply: string,
     zodSchema: z.ZodSchema<T>,
-    log: (message: string) => void = () => {}
+    log: (message: string) => void = () => {},
+    model: string = 'The model'
 ): T {
     const cleaned = cleanResponse(rawReply);
 
@@ -150,7 +152,7 @@ export function parseAndValidateLlmJson<T>(
 
     if (zodError !== null) {
         log(`Zod validation failed: ${JSON.stringify((zodError as z.ZodError).errors)}`);
-        throw new Error(`Response validation failed: ${(zodError as z.ZodError).message}`);
+        throw new ModelInvalidResponseError(model, `Response validation failed: ${(zodError as z.ZodError).message}`);
     }
-    throw new Error(`Failed to parse JSON response: ${parseError}. First 200 chars: ${cleaned.slice(0, 200)}`);
+    throw new ModelInvalidResponseError(model, `Failed to parse JSON response: ${parseError}. First 200 chars: ${cleaned.slice(0, 200)}`);
 }

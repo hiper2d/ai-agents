@@ -139,6 +139,25 @@ import { setBeforeAskHook } from '@hiper2d/ai-agents';
 setBeforeAskHook(async agent => { if (agent.userId) await budget.assertWithinBudget(agent.userId); });
 ```
 
+### Retrying empty and malformed answers
+
+A model sometimes answers with nothing, or with text that is not the JSON the schema asked
+for. Both throw `ModelInvalidResponseError`, and the same prompt usually works on the next
+try, so an agent can re-send it on its own: set `agent.invalidResponseRetries` (default 0).
+Timeouts, refusals, transport errors and cap hits (`truncated`) are never retried. Each
+re-send runs the before-ask hook again — it is a new paid call. To show the wait in a UI,
+install a retry hook; whatever function it returns is awaited once the ask has settled:
+
+```ts
+import { setRetryHook } from '@hiper2d/ai-agents';
+setRetryHook(async ({ agent, model, error, attempt }) => {
+  await ui.show(agent.gameId, `${agent.name}: ${error.message}, asking again`);
+  return () => ui.hide(agent.gameId);
+});
+```
+
+The error finally thrown after the last allowed attempt carries `retries`.
+
 ### Logging
 
 The library logs through an injectable sink — `setLlmLogger(fn)` — so a host app can route

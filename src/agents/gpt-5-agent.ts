@@ -280,7 +280,7 @@ export class Gpt5Agent extends AbstractAgent {
                         reason === 'max_output_tokens'
                     );
                 }
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             // Extract token usage

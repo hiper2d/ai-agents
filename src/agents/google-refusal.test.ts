@@ -66,9 +66,9 @@ describe('GoogleAgent refusal handling', () => {
 
     it('still reports a plain empty response as the wrapped generic error, naming what it saw', async () => {
         const err = await agentReturning({ text: '', candidates: [{ finishReason: 'STOP', content: { parts: [] } }] }).askText(MESSAGES).catch(e => e);
-        expect(err).toBeInstanceOf(Error);
+        expect(err).toBeInstanceOf(ModelInvalidResponseError);
         expect(err).not.toBeInstanceOf(ModelRefusalError);
-        expect(err.message).toBe('Empty response from Google API (finishReason=STOP)');
+        expect(err.message).toMatch(/failed to produce a valid response: Empty response from Google API \(finishReason=STOP\)$/);
     });
 });
 

@@ -1,4 +1,5 @@
 import {AbstractAgent} from "./abstract-agent";
+import { ModelError, ModelInvalidResponseError } from "../errors";
 import { stableHashHex } from "../text-utils";
 import {OpenAI} from "openai";
 import {AIMessage, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG} from "../types";
@@ -84,13 +85,13 @@ export class MetaAgent extends AbstractAgent {
             const response = await this.createResponse(input, zodSchema);
             const { text, reasoningSummary, encryptedReasoning } = this.extractResponseParts(response);
             if (!text) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             this.logger(`Meta Agent - Found reasoning summary: ${!!reasoningSummary}, encrypted reasoning: ${!!encryptedReasoning}`);
 
             // Parse and validate the response using the shared lenient parser
-            const parsedData = parseAndValidateLlmJson(text, zodSchema, (m) => this.logger(m));
+            const parsedData = parseAndValidateLlmJson(text, zodSchema, (m) => this.logger(m), this.model);
 
             this.logger(`✅ Response validated successfully with Zod schema`);
 
@@ -104,6 +105,7 @@ export class MetaAgent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) throw error;
             throw new Error(this.errorMessages.apiError(error));
         }
     }
@@ -122,7 +124,7 @@ export class MetaAgent extends AbstractAgent {
             const response = await this.createResponse(input);
             const { text, reasoningSummary, encryptedReasoning } = this.extractResponseParts(response);
             if (!text) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             const tokenUsage = this.extractTokenUsage(response);
@@ -133,6 +135,7 @@ export class MetaAgent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) throw error;
             throw new Error(this.errorMessages.apiError(error));
         }
     }

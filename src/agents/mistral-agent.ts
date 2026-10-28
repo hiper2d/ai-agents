@@ -1,4 +1,5 @@
 import { AbstractAgent } from "./abstract-agent";
+import { ModelError, ModelInvalidResponseError } from "../errors";
 import { stableHashHex } from "../text-utils";
 import { Mistral } from "@mistralai/mistralai";
 import { HTTPClient } from "@mistralai/mistralai/lib/http.js";
@@ -128,7 +129,7 @@ export class MistralAgent extends AbstractAgent {
         const message = response?.choices?.[0]?.message;
 
         if (!message || !message.content) {
-            throw new Error(this.errorMessages.emptyResponse);
+            throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
         }
 
         let reply = message.content;
@@ -273,14 +274,14 @@ export class MistralAgent extends AbstractAgent {
             }
 
             if (!response || !response.choices || response.choices.length === 0) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             const choice = response.choices[0];
             const content = choice.message?.content;
 
             if (!content) {
-                throw new Error(this.errorMessages.invalidFormat);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.invalidFormat);
             }
 
             // With reasoning on the content is a [thinking, text] chunk array; a plain string
@@ -301,7 +302,7 @@ export class MistralAgent extends AbstractAgent {
 
             // Parse and validate the response using the shared lenient parser
             // (handles Mistral's nested-reply-object quirk internally)
-            const parsedData = parseAndValidateLlmJson(responseText, zodSchema, (m) => this.logger(m));
+            const parsedData = parseAndValidateLlmJson(responseText, zodSchema, (m) => this.logger(m), this.model);
 
             this.logger(`✅ Response validated successfully with Zod schema`);
 
@@ -316,6 +317,7 @@ export class MistralAgent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) throw error;
             throw new Error(this.errorMessages.apiError(error));
         }
     }
@@ -353,7 +355,7 @@ export class MistralAgent extends AbstractAgent {
             const [content, thinkingContent, tokenUsage] = this.processReply(response);
 
             if (!content) {
-                throw new Error(this.errorMessages.emptyResponse);
+                throw new ModelInvalidResponseError(this.model, this.errorMessages.emptyResponse);
             }
 
             this.logReply(content, thinkingContent || undefined, tokenUsage);
@@ -362,6 +364,7 @@ export class MistralAgent extends AbstractAgent {
 
         } catch (error) {
             this.logger(this.logTemplates.error(this.name, error));
+            if (error instanceof ModelError) throw error;
             throw new Error(this.errorMessages.apiError(error));
         }
     }
