@@ -80,7 +80,7 @@ export class AgentFactory {
             case LLM_CONSTANTS.QWEN_FLASH:
                 return new QwenAgent(name, instruction, model.modelApiName, key, model.temperature!, shouldEnableThinking);
 
-            // MiniMax M3 — adaptive thinking (the model decides per-request)
+            // MiniMax M3.1 Flash — always-on adaptive thinking, effort from the catalog
             case LLM_CONSTANTS.MINIMAX:
                 return new MiniMaxAgent(name, instruction, model.modelApiName, key, model.temperature!, shouldEnableThinking);
 

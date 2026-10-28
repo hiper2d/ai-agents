@@ -3,18 +3,25 @@ import { mergeThinking, stripInlineThinking } from "../thinking-utils";
 import { OpenAI } from "openai";
 import { AIMessage, TokenUsage, AgentLoggingConfig, DEFAULT_LOGGING_CONFIG } from "../types";
 import { extractUsageAndCalculateCost } from "../pricing";
+import { toMiniMaxEffort } from "../reasoning-effort";
 import { z } from 'zod';
 import { ZodSchemaConverter } from '../zod-schema-converter';
 import { parseAndValidateLlmJson } from '../json-response-parser';
 
-// MiniMax M3 agent. The API is OpenAI-compatible (https://api.minimax.io/v1), so we use the
-// OpenAI SDK with a custom baseURL. M3's `thinking` param is `{type: 'adaptive'}` by default
-// (the model decides per-request how much to think) and `{type: 'disabled'}` turns it off.
+// MiniMax M-series agent (M3.1 Flash since 2026-10-27, M3 before). The API is OpenAI-compatible
+// (https://api.minimax.io/v1), so we use the OpenAI SDK with a custom baseURL. `thinking` is
+// `{type: 'adaptive'}` by default; `{type: 'disabled'}` turned M3 off and is a 400 on M3.1 Flash,
+// which always thinks. M3.1 Flash is the first MiniMax model with `reasoning_effort`
+// (low|medium|high|xhigh|max, default max); it is sent whenever the catalog or the caller pins
+// one, and ignored by the older models.
 //
 // We always send `reasoning_split: true`: without it, thinking arrives as `<think>` tags INSIDE
 // message.content and would poison JSON parsing; with it, thinking arrives separately in
 // `message.reasoning_content` (same field as Qwen/GLM/DeepSeek). We still strip stray <think>
 // blocks from the answer defensively.
+//
+// Temperature goes out only when the catalog sets one: MiniMax documents it as "not supported
+// yet; any value passed has no effect" for M3 and M3.1 Flash (2026-10-27), so the entries set none.
 //
 // Structured output: the M-series Chat Completions API has no `response_format` at all, so
 // schema constraints are conveyed in-prompt and parsed leniently. MiniMax's Anthropic-compatible
@@ -30,10 +37,10 @@ export class MiniMaxAgent extends AbstractAgent {
     private get defaultParams(): Omit<Parameters<OpenAI['chat']['completions']['create']>[0], 'messages'> {
         return {
             model: this.model,
-            temperature: this.temperature,
+            ...(this.temperature !== undefined ? { temperature: this.temperature } : {}),
             stream: false,
-            // MiniMax deprecates max_tokens in favor of max_completion_tokens (M3 max is 512K,
-            // far above anything a turn needs).
+            // MiniMax deprecates max_tokens in favor of max_completion_tokens (the M-series max is
+            // 512K, far above anything a turn needs).
             max_completion_tokens: this.maxOutputTokens,
         };
     }
@@ -69,6 +76,8 @@ export class MiniMaxAgent extends AbstractAgent {
         return {
             thinking: { type: this.enableThinking ? 'adaptive' : 'disabled' },
             reasoning_split: true,
+            // Provider default is max; the catalog pins M3.1 Flash to medium. Older models ignore it.
+            ...(this.enableThinking && this.reasoningEffort ? { reasoning_effort: toMiniMaxEffort(this.reasoningEffort) } : {}),
         };
     }
 

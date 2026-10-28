@@ -36,7 +36,9 @@ import type { ReasoningEffort } from './catalog';
  *   alias for thinking_budget (low = 4,096, medium = 16,384, xhigh = 262,144 tokens) and the
  *   two are mutually exclusive — sending both is a 400. QwenAgent sends the budget instead,
  *   because 1,024 is tighter than the lowest level effort can express.
- * MiniMax exposes no effort parameter.
+ * - MiniMax M3.1 Flash (platform.minimax.io text-chat-openai reference, 2026-10-27):
+ *   low|medium|high|xhigh|max, default max, top-level `reasoning_effort` on Chat Completions;
+ *   "none" → 400. Only M3.1 Flash honours it — M3 and M2.x ignore the field.
  */
 export type OpenAIReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 export type AnthropicReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
@@ -48,6 +50,7 @@ export type MetaReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh
 export type MistralReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 export type XaiReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
 export type KimiReasoningEffort = 'low' | 'high' | 'max';
+export type MiniMaxReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 /** The shared scale, lowest first. */
 export const REASONING_EFFORT_SCALE: readonly ReasoningEffort[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
@@ -62,6 +65,7 @@ export const META_REASONING_EFFORTS: readonly MetaReasoningEffort[] = ['minimal'
 export const MISTRAL_REASONING_EFFORTS: readonly MistralReasoningEffort[] = ['high'];
 export const XAI_REASONING_EFFORTS: readonly XaiReasoningEffort[] = ['low', 'medium', 'high', 'xhigh'];
 export const KIMI_REASONING_EFFORTS: readonly KimiReasoningEffort[] = ['low', 'high', 'max'];
+export const MINIMAX_REASONING_EFFORTS: readonly MiniMaxReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max'];
 
 /** Clamps `effort` to the nearest level in `allowed` (by rank on the shared scale, ties go up). */
 export function clampReasoningEffort<T extends ReasoningEffort>(effort: ReasoningEffort, allowed: readonly T[]): T {
@@ -89,3 +93,4 @@ export const toFuguEffort = (effort: ReasoningEffort): FuguReasoningEffort => cl
 export const toMistralEffort = (effort: ReasoningEffort): MistralReasoningEffort => clampReasoningEffort(effort, MISTRAL_REASONING_EFFORTS);
 export const toXaiEffort = (effort: ReasoningEffort): XaiReasoningEffort => clampReasoningEffort(effort, XAI_REASONING_EFFORTS);
 export const toKimiEffort = (effort: ReasoningEffort): KimiReasoningEffort => clampReasoningEffort(effort, KIMI_REASONING_EFFORTS);
+export const toMiniMaxEffort = (effort: ReasoningEffort): MiniMaxReasoningEffort => clampReasoningEffort(effort, MINIMAX_REASONING_EFFORTS);

@@ -112,7 +112,7 @@ export const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
 
 // Speed tags graded from live measurements (one identical prompt per model;
 // re-graded 2026-08-04, very-slow tier added 2026-08-05): very-fast < 3s, fast 3-6s,
-// slow 15-25s, very-slow > 25s (the K3 / Qwen Max / MiniMax cluster), extremely-slow = minutes
+// slow 15-25s, very-slow > 25s (the K3 / Qwen Max cluster), extremely-slow = minutes
 // (Fugu Ultra exclusively). Models in the 6-13s middle carry NO speed tag on purpose — "medium"
 // is the unlabeled default. Single-sample measurements: trust the bucket, not fine ordering.
 export type ModelTag = 'very-fast' | 'fast' | 'slow' | 'very-slow' | 'extremely-slow' | 'cheap' | 'expensive';
@@ -564,20 +564,29 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         tags: ['slow', 'cheap'],
     },
 
-    // MiniMax M3 (OpenAI-compatible endpoint, 1M context). Thinking-only entry: M3's `thinking`
-    // param defaults to adaptive (it decides per-request how much to think) and can be disabled,
-    // making it hybrid for cost purposes. The agent always sends `reasoning_split: true` so
-    // thinking arrives in `reasoning_content` instead of as `<think>` tags inside the answer.
-    // Note: unlike Qwen, M3 has NO thinking-budget parameter — adaptive is the only throttle.
-    // Speed from the 2026-08-05 live measurement (single sample): 25.3s → the >25s tier.
-    // Temperature: MiniMax range is [0,2], default 1.
+    // MiniMax M3.1 Flash (OpenAI-compatible endpoint, 1M context). `minimax` repointed 2026-10-27
+    // from MiniMax-M3 ($0.30/$1.20 after the permanent 50% off, 25s single-sample turn, 60s
+    // timeouts in prod on 2026-10-25 and 10-27) to MiniMax-M3.1-Flash: half the price
+    // ($0.15/$0.60), and the first MiniMax model with an effort dial — low|medium|high|xhigh|max,
+    // provider default max, so it is pinned. Thinking is always on (`thinking: disabled` → 400),
+    // thinking arrives in `reasoning_content` because the agent sends `reasoning_split: true`
+    // (M3.1 rejects false). Temperature and top_p are documented as ignored ("not supported
+    // yet", always 1 / 0.95), so the entry sets none and the agent sends none.
+    // Live 2026-10-27 at medium: the all-providers sweep ran the schema ask in 3.1s, prose in
+    // 1.7s and the 8-character scene (363 output tokens) in 2.4s — ~150 tok/s, the fastest
+    // provider in the sweep that day (Kimi Highspeed's scene takes 8s); a 3.2k-token game
+    // prompt with a two-sentence JSON reply took 1.9-2.1s at every effort level vs 3.5s for M3.
+    // Tagged `fast` rather than `very-fast`: the sweep straddles the 3s line and production
+    // turns carry 10k+ tokens of context. Launched 2026-09-27 as Token-Plan-only (the
+    // 2026-10-02 probe got `unknown model` on the pay-as-you-go key); on the key since at
+    // least 2026-10-27.
     [LLM_CONSTANTS.MINIMAX]: {
-        displayName: 'MiniMax M3',
-        modelApiName: 'MiniMax-M3',
+        displayName: 'MiniMax M3.1 Flash',
+        modelApiName: 'MiniMax-M3.1-Flash',
         apiKeyName: API_KEY_CONSTANTS.MINIMAX,
         hasThinking: true,
-        temperature: 1,
-        tags: ['very-slow', 'cheap'],
+        reasoningEffort: 'medium',
+        tags: ['fast', 'cheap'],
     },
 
     // Meta Muse Spark 1.3 (added 2026-09-12) on Meta's own Model API — Standard tier, i.e.
@@ -978,18 +987,14 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         cacheHitPrice: 0.016
     },
 
-    // MiniMax M3. Rates from platform.minimax.io/docs/guides/pricing-paygo (2026-08-05, USD,
-    // "permanent 50% off" already applied): ≤512k and >512k input tiers. Caching is automatic
-    // (≥512 input tokens), hits reported in prompt_tokens_details.cached_tokens; no write fee
-    // for M3.
+    // MiniMax M3.1 Flash. Rates from platform.minimax.io/docs/guides/pricing-paygo (2026-10-27,
+    // USD): one tier across the 1M window (M3 had ≤512k / >512k tiers; the page lists none for
+    // M3.1 Flash). Caching is automatic (≥512 input tokens), hits reported in
+    // prompt_tokens_details.cached_tokens; no write fee listed.
     [SupportedAiModels[LLM_CONSTANTS.MINIMAX].modelApiName]: {
-        inputPrice: 0.30,
-        outputPrice: 1.20,
-        cacheHitPrice: 0.06,
-        extendedContextInputPrice: 0.60,
-        extendedContextOutputPrice: 2.40,
-        extendedContextCacheHitPrice: 0.12,
-        extendedContextThresholdTokens: 512_000
+        inputPrice: 0.15,
+        outputPrice: 0.60,
+        cacheHitPrice: 0.015
     },
 
     // Meta Muse Spark 1.3, Standard tier. Rates from ai.developer.meta.com/docs/pricing-rate-limits
@@ -1027,7 +1032,7 @@ const HYBRID_THINKING_API_NAMES = new Set([
     // hybrid by the same definition: we force reasoning on, so they carry the multiplier.
     SupportedAiModels[LLM_CONSTANTS.QWEN_MAX].modelApiName,
     SupportedAiModels[LLM_CONSTANTS.QWEN_FLASH].modelApiName,
-    SupportedAiModels[LLM_CONSTANTS.MINIMAX].modelApiName,
+    // MiniMax left the set 2026-10-27: M3.1 Flash cannot turn thinking off (M3 could).
     // Mistral reasons only when asked (`reasoning_effort`), and we always ask — hybrid by the
     // same definition as Qwen. Added 2026-09-18 when the Mistral entries went thinking-on.
     SupportedAiModels[LLM_CONSTANTS.MISTRAL_SMALL].modelApiName,
