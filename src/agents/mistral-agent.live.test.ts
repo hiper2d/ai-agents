@@ -2,13 +2,13 @@
  * Live suite for the Mistral agent (Mistral SDK chat.complete). Real calls; skips itself
  * when MISTRAL_API_KEY is missing. What it pins:
  * - schema asks return typed replies with token usage AND a reasoning trace on both hybrid
- *   models (Small 4, Medium 3.5) — `reasoning_effort` rides in the wire body and the trace
+ *   models (Small 4, Large 4) — `reasoning_effort` rides in the wire body and the trace
  *   arrives as a `thinking` content chunk even with json_schema structured output
  * - a stored trace on a prior assistant turn is replayed as [thinking, text] chunks and the
  *   API accepts the shape
- * - a large 8-character structured response parses cleanly on both models
+ * - a large 8-character structured response parses cleanly on Small
  * - provider errors, empty choices, and missing content surface as the agent's own errors
- * - catalog pricing for Medium and Small
+ * - catalog pricing for Large and Small
  */
 import { MistralAgent } from './mistral-agent';
 import { API_KEY_CONSTANTS, LLM_CONSTANTS, SupportedAiModels, calculateModelCost, isHybridThinkingModel } from '../catalog';
@@ -56,6 +56,10 @@ describe('MistralAgent live', () => {
 
         it('Mistral Small returns a typed reply with a reasoning trace', async () => {
             await expectTypedReplyWithTrace(LLM_CONSTANTS.MISTRAL_SMALL);
+        }, 60000);
+
+        it('Mistral Large returns a typed reply with a reasoning trace', async () => {
+            await expectTypedReplyWithTrace(LLM_CONSTANTS.MISTRAL_LARGE);
         }, 60000);
 
         it('replays a stored trace on a prior assistant turn as thinking chunks', async () => {
@@ -124,7 +128,9 @@ describe('MistralAgent live', () => {
             const agent = createAgent('Mira', LLM_CONSTANTS.MISTRAL_SMALL);
             (agent as any).client.chat.complete = jest.fn().mockResolvedValue({ choices: [{ message: {} }] });
             await expect(agent.askWithZodSchema(ReplySchema, ping))
-                .rejects.toThrow('Failed to get response from Mistral API: Invalid response format from Mistral API');
+                // Since 0.30.0 a missing body is a ModelInvalidResponseError (the one kind the
+                // host may re-send once), not the generic provider wrapper.
+                .rejects.toThrow('failed to produce a valid response: Invalid response format from Mistral API');
         });
     });
 
@@ -134,8 +140,13 @@ describe('MistralAgent live', () => {
             expect(calculateModelCost(apiName, 1_000_000, 1_000_000)).toBeCloseTo(0.75, 2);
         });
 
+        it('Mistral Large: $0.70 in / $2.10 out per 1M', () => {
+            const apiName = SupportedAiModels[LLM_CONSTANTS.MISTRAL_LARGE].modelApiName;
+            expect(calculateModelCost(apiName, 1_000_000, 1_000_000)).toBeCloseTo(2.80, 2);
+        });
+
         it('every entry is a hybrid thinking model pinned to high effort', () => {
-            for (const id of [LLM_CONSTANTS.MISTRAL_SMALL]) {
+            for (const id of [LLM_CONSTANTS.MISTRAL_LARGE, LLM_CONSTANTS.MISTRAL_SMALL]) {
                 const config = SupportedAiModels[id];
                 expect(config.hasThinking).toBe(true);
                 expect(config.reasoningEffort).toBe('high');

@@ -70,6 +70,8 @@ export const LLM_CONSTANTS = {
     GEMINI_FLASH: 'gemini-flash',
     GEMINI_LITE: 'gemini-lite',
     MISTRAL_SMALL: 'mistral-small',
+    // Version-free id (Large 3 used it until 2026-09-18; Large 4 took it over 2026-10-06).
+    MISTRAL_LARGE: 'mistral-large',
     GROK: 'grok',
     KIMI: 'kimi',
     // Kimi K3.1 Pro Highspeed: the same model served 2-3x faster at 2x the price (added
@@ -375,7 +377,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         tags: ['very-slow'],
     },
 
-    // Mistral models. One hybrid entry: reasoning is off by default on the API and switched on
+    // Mistral models. Two hybrid entries: reasoning is off by default on the API and switched on
     // per request with `reasoning_effort` (see mistral-agent.ts); the trace comes back as a
     // `thinking` content chunk and works with json_schema structured output (verified live
     // 2026-09-18). Pinned to 'high' — the only level Mistral's docs describe ("full thinking
@@ -396,12 +398,27 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // `magistral-medium-latest` as one entry — so Magistral seats had silently become Medium
     // seats already. Consumers map both retired ids onto Small (Medium itself is gone since 0.21.0).
     //
-    // Mistral Large 4 (`mistral-large-4`, $0.68/$2.09, $0.07 cached) was added in 0.19.0 and
-    // removed in 0.19.1 (2026-10-06/07): too slow to play. Like Small/Medium it accepts only
-    // reasoning_effort high|none, and unlike them it reasons when the field is omitted. At high
-    // a realistic day-2 vote took 25-154s (half past the 60s timeout) and its parallel story
-    // batches finished ~100s apart (Mistral served them one at a time: ~6 min per story). Off,
-    // it answers in ~1s with no trace. Re-test before re-adding.
+    // Mistral Large 4 (`mistral-large-4`, released 2026-10-06 in public preview) was added in
+    // 0.19.0 and removed in 0.19.1 the next day: at launch a realistic day-2 vote took 25-154s
+    // (half past the 60s timeout) and the story batches finished ~100s apart. Re-tested
+    // 2026-10-30 on the same requests and RE-ADDED in 0.31.0: 19 day-2 votes ran 6-25s (median
+    // ~14s, no timeouts, 760-3,100 output tokens, $0.002-0.011 each) and the 15-character story
+    // pipeline 114-118s — the launch-week slowness was serving load, since `high` is fast now
+    // too. Two things still hold: Mistral serves our parallel sheet batches one at a time
+    // (~22-25s each, finishing 22/50/77/99s), so story time scales with the lobby; and the
+    // model reasons when the field is omitted. The API now takes low|medium|high on Large 4
+    // (the 400 for `none` lists exactly those; Small still takes only high|none); the level
+    // barely moved latency or trace size (4-12k chars at every level), so it stays on the
+    // documented 'high' default. Model list: 1M context. Tagged `slow`: the 15-25s band.
+    [LLM_CONSTANTS.MISTRAL_LARGE]: {
+        displayName: 'Mistral Large 4',
+        // `mistral-large-latest` still points at Large 3 (no reasoning); use the explicit id.
+        modelApiName: 'mistral-large-4',
+        apiKeyName: API_KEY_CONSTANTS.MISTRAL,
+        hasThinking: true,
+        reasoningEffort: 'high',
+        tags: ['slow'],
+    },
     [LLM_CONSTANTS.MISTRAL_SMALL]: {
         displayName: 'Mistral 4 Small',
         // Resolves to mistral-small-2603 (Small 4), which also carries the magistral-small alias.
@@ -944,6 +961,13 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         outputPrice: 0.6,
         cacheHitPrice: 0.015
     },
+    // Large 4: docs.mistral.ai/models/mistral-large-4-0, read 2026-10-30 ($0.70 / $0.07 cached /
+    // $2.10). The $0.68/$2.09 recorded in 0.19.0 was the two-week launch discount.
+    [SupportedAiModels[LLM_CONSTANTS.MISTRAL_LARGE].modelApiName]: {
+        inputPrice: 0.70,
+        outputPrice: 2.10,
+        cacheHitPrice: 0.07
+    },
 
     // Grok models. Cached price is per-model on xAI (not a uniform ratio):
     // grok-4.7 is $0.50/M cached vs $2.00/M input, and all rates double for prompts
@@ -1036,6 +1060,7 @@ const HYBRID_THINKING_API_NAMES = new Set([
     // Mistral reasons only when asked (`reasoning_effort`), and we always ask — hybrid by the
     // same definition as Qwen. Added 2026-09-18 when the Mistral entries went thinking-on.
     SupportedAiModels[LLM_CONSTANTS.MISTRAL_SMALL].modelApiName,
+    SupportedAiModels[LLM_CONSTANTS.MISTRAL_LARGE].modelApiName,
 ]);
 
 /** True for hybrid thinking-only models — the ones whose effective output price is a known

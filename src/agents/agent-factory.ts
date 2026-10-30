@@ -59,6 +59,7 @@ export class AgentFactory {
                 return new DeepSeekV2Agent(name, instruction, model.modelApiName, key, model.temperature ?? 0, shouldEnableThinking);
 
             // Mistral models
+            case LLM_CONSTANTS.MISTRAL_LARGE:
             case LLM_CONSTANTS.MISTRAL_SMALL:
                 return new MistralAgent(name, instruction, model.modelApiName, key, shouldEnableThinking);
             case LLM_CONSTANTS.KIMI:

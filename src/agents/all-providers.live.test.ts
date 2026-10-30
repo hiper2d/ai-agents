@@ -131,6 +131,7 @@ const THINKING_GUARANTEED = new Set<string>([
     LLM_CONSTANTS.DEEPSEEK_FLASH,
     LLM_CONSTANTS.DEEPSEEK_PRO,
     LLM_CONSTANTS.MISTRAL_SMALL,         // reasoning_effort: high always returns the thinking chunk
+    LLM_CONSTANTS.MISTRAL_LARGE,
 ]);
 
 // GPT-5's plain-text path cannot surface thinking (OpenAI never exposes chain-of-thought),
@@ -150,6 +151,7 @@ const TEXT_SWEEP_MODELS = new Set<string>([
     LLM_CONSTANTS.GEMINI_FLASH,
     LLM_CONSTANTS.GEMINI_LITE,
     LLM_CONSTANTS.MISTRAL_SMALL,           // [thinking, text] content array
+    LLM_CONSTANTS.MISTRAL_LARGE,
     LLM_CONSTANTS.GROK,
     LLM_CONSTANTS.KIMI,
     LLM_CONSTANTS.GLM,

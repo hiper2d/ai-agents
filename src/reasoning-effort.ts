@@ -21,10 +21,14 @@ import type { ReasoningEffort } from './catalog';
  * - Meta Muse Spark (verified 2026-09-12): minimal|low|medium|high|xhigh|max ("none" → 400; max is
  *   Standard tier only)
  * - Mistral Small 4 / Medium 3.5 / Large 4: the documented API enum is
- *   none|minimal|low|medium|high|xhigh, but every model we run accepts only "none" and "high"
- *   (each other value is a 400 "not supported for this model, supported values: [high, none]",
- *   checked on all three 2026-10-06). Reasoning is OFF unless the field is sent; "none" means
- *   "don't reason", which an agent expresses by omitting the field, so the slice is just high.
+ *   none|minimal|low|medium|high|xhigh, but Small 4 accepts only "none" and "high" (each other
+ *   value is a 400 "not supported for this model, supported values: [high, none]", checked
+ *   2026-10-06). Large 4 takes low|medium|high since at least 2026-10-30 (its 400 for "none"
+ *   lists exactly those), but the level barely changed its latency or trace size on real game
+ *   turns and it is pinned to the documented "high" default, so the shared slice stays just
+ *   high: a lower request on Large clamps up rather than risk a 400 on Small. Reasoning is OFF
+ *   on Small unless the field is sent ("none" = "don't reason", which an agent expresses by
+ *   omitting the field); Large reasons even when the field is omitted.
  * - xAI Grok 4.7 (docs.x.ai/developers/model-capabilities/text/reasoning, 2026-09-22):
  *   low|medium|high|xhigh, default high, sent on the Responses API as `reasoning: {effort}`.
  *   Chat Completions has no equivalent. Grok 4.6 and earlier had no knob at all.
