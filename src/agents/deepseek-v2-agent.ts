@@ -97,9 +97,8 @@ export class DeepSeekV2Agent extends AbstractAgent {
      * New method using Zod with DeepSeek API
      * This provides better schema handling and runtime validation
      * 
-     * DeepSeek V4 uses thinking toggle via extra_body. JSON mode (response_format
-     * json_object) is supported with or without thinking, so we always request it.
-     * Thinking additionally surfaces reasoning via reasoning_content.
+     * DeepSeek V4 uses thinking toggle via extra_body; reasoning comes back in
+     * reasoning_content. No JSON mode (response_format json_object), see below.
      */
     async doAskWithZodSchema<T>(zodSchema: z.ZodSchema<T>, messages: AIMessage[]): Promise<[T, string, TokenUsage?, string?]> {
         try {
@@ -133,11 +132,12 @@ export class DeepSeekV2Agent extends AbstractAgent {
                 requestParams.messages = this.addSystemInstruction(modifiedInput);
             }
 
-            // JSON mode is supported by both thinking and non-thinking models, so always
-            // request it for structural enforcement. Thinking is an orthogonal toggle.
-            requestParams.response_format = {
-                type: 'json_object'
-            };
+            // No response_format json_object on purpose (0.31.1). When the history holds
+            // the bot's own earlier replies as prose, Flash starts to answer in prose, and
+            // JSON mode only allows leading whitespace there, so it pads 250-650 chars of
+            // spaces until it stops, which reads as an empty answer. Replayed on a prod
+            // werewolf night prompt (2026-11-01): 13/20 failed with JSON mode, 0/8 without.
+            // The schema in the prompt plus the lenient parser below do the enforcement.
 
             Object.assign(requestParams, this.thinkingParams());
 

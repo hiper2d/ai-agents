@@ -37,14 +37,14 @@ describe('DeepSeekV2Agent request shape', () => {
     expect(captured.params.temperature).toBeUndefined();
   });
 
-  it('askWithZodSchema sends thinking enabled, the catalog reasoning_effort and JSON mode', async () => {
+  it('askWithZodSchema sends thinking enabled, the catalog reasoning_effort and no JSON mode', async () => {
     const { agent, captured } = makeAgent(jsonCompletion);
     await agent.askWithZodSchema(ReplySchema, MESSAGES);
 
     expect(captured.params.thinking).toEqual({ type: 'enabled' });
     expect(captured.params.extra_body).toBeUndefined();
     expect(captured.params.reasoning_effort).toBe('low');
-    expect(captured.params.response_format).toEqual({ type: 'json_object' });
+    expect(captured.params.response_format).toBeUndefined();
   });
 
   it('pins low on both V4 models', async () => {
