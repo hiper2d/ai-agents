@@ -112,11 +112,16 @@ export const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
  */
 export const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
 
-// Speed tags graded from live measurements (one identical prompt per model;
-// re-graded 2026-08-04, very-slow tier added 2026-08-05): very-fast < 3s, fast 3-6s,
-// slow 15-25s, very-slow > 25s (the K3 / Qwen Max cluster), extremely-slow = minutes
-// (Fugu Ultra exclusively). Models in the 6-13s middle carry NO speed tag on purpose — "medium"
-// is the unlabeled default. Single-sample measurements: trust the bucket, not fine ordering.
+// Speed tags, re-graded 2026-11-03 from 30 days of PRODUCTION bot turns (werewolf
+// requestStats, real game prompts, models with 100+ turns; fewer keep their earlier grade).
+// Fast tags go by the typical turn, slow tags by the tail, because the tail is what hits the
+// 60s request timeout: very-fast = p50 < 3s; fast = p50 3-6s AND p90 < 15s; no tag = the
+// unlabeled middle (p90 < 20s); slow = p90 20-30s; very-slow = p90 > 30s; extremely-slow =
+// minutes. Earlier grades (2026-08) came from one identical prompt per model. 2026-11-03 moves:
+// DeepSeek Flash (2.6s p50) and Gemini Lite (1.0s) → very-fast; Sonnet (4.2/11.3) and Haiku
+// (5.0/10.6) → fast; Mistral Small (5.2s) very-fast → fast; MiniMax (p90 16.0) and Gemini
+// Flash (p50 9.9) lose fast; GLM 5.3 (5.0/15.3) loses slow; Qwen Max (p90 26.2) very-slow →
+// slow; Kimi K3.1 Pro (p90 34.1) slow → very-slow.
 export type ModelTag = 'very-fast' | 'fast' | 'slow' | 'very-slow' | 'extremely-slow' | 'cheap' | 'expensive';
 
 export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
@@ -190,7 +195,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         apiKeyName: API_KEY_CONSTANTS.ANTHROPIC,
         hasThinking: true,
         reasoningEffort: 'high',
-        tags: ['expensive'],
+        tags: ['fast', 'expensive'],
     },
     // Haiku moved 4.5 → 5.5 on 2026-10-08 (`claude-haiku-5-5`, verified live with the platform
     // key). 10x cheaper ($0.10/$0.50 up to 100K-token prompts), 1M context / 128K output.
@@ -204,7 +209,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         apiKeyName: API_KEY_CONSTANTS.ANTHROPIC,
         hasThinking: true,
         reasoningEffort: 'high',
-        tags: ['cheap'],
+        tags: ['fast', 'cheap'],
     },
 
     // DeepSeek V4 models — thinking-only entries (non-thinking variants retired 2026-08-05).
@@ -222,7 +227,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         reasoningEffort: 'low',
         // Reasoning tokens share the output budget, so leave room for both CoT and answer.
         maxOutputTokens: 65536,
-        tags: ['cheap'],
+        tags: ['very-fast', 'cheap'],
     },
     [LLM_CONSTANTS.DEEPSEEK_PRO]: {
         displayName: 'DeepSeek V4 Pro',
@@ -343,7 +348,6 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         apiKeyName: API_KEY_CONSTANTS.GOOGLE,
         hasThinking: true,
         reasoningEffort: 'medium',
-        tags: ['fast'],
     },
     [LLM_CONSTANTS.GEMINI_LITE]: {
         displayName: 'Gemini 3.5 Flash Lite',
@@ -353,7 +357,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         reasoningEffort: 'minimal',
         // Pre-3.6, same as Pro: keeps the 0.2 it always had.
         temperature: 0.2,
-        tags: ['fast', 'cheap'],
+        tags: ['very-fast', 'cheap'],
     },
     // Always-on reasoning — no non-thinking sibling. Bumped 4.6 → 4.7 on 2026-09-22 (id verified
     // against GET /v1/models). Same price, same 200K extended-context boundary; the context
@@ -409,7 +413,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // model reasons when the field is omitted. The API now takes low|medium|high on Large 4
     // (the 400 for `none` lists exactly those; Small still takes only high|none); the level
     // barely moved latency or trace size (4-12k chars at every level), so it stays on the
-    // documented 'high' default. Model list: 1M context. Tagged `slow`: the 15-25s band.
+    // documented 'high' default. Model list: 1M context. Tagged `slow`: prod p90 27.8s (2026-11-03).
     [LLM_CONSTANTS.MISTRAL_LARGE]: {
         displayName: 'Mistral Large 4',
         // `mistral-large-latest` still points at Large 3 (no reasoning); use the explicit id.
@@ -426,7 +430,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         apiKeyName: API_KEY_CONSTANTS.MISTRAL,
         hasThinking: true,
         reasoningEffort: 'high',
-        tags: ['very-fast', 'cheap'],
+        tags: ['fast', 'cheap'],
     },
 
     // Kimi models. Always-reasoning entries: K3-series models reason by default and the only way
@@ -438,7 +442,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // 15-character story pipeline) to Kimi K3.1 Pro ($2/$10, 1M context, same low|high|max
     // effort levels, default max). Live at high effort 2026-10-23: 3-sentence schema ask
     // 4.2-4.5s, 8-character scene (476-845 output tokens) 9.7-14.9s = 49-57 tok/s — the same
-    // output speed as K3, so a full bot turn still lands in the 15-25s `slow` band.
+    // output speed as K3. Prod 2026-11-03: p90 34.1s, so `very-slow`.
     // Consumer policy (werewolf): 1 bot per free game (opt-in) until 100 turns are measured.
     [LLM_CONSTANTS.KIMI]: {
         displayName: 'Kimi K3.1 Pro',
@@ -449,7 +453,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         // Pinned 'high' 2026-09-22, down from Moonshot's 'max' default: K3 had no levels at
         // launch and the agent hardcoded max, so this is the first time the knob exists.
         reasoningEffort: 'high',
-        tags: ['slow', 'expensive'],
+        tags: ['very-slow', 'expensive'],
     },
     // Same model, Moonshot's high-speed serving tier ("roughly two to three times faster",
     // platform.kimi.ai K3.1 Pro quickstart, read 2026-10-23) at 2x the price ($4/$20 — Opus 5.5
@@ -481,7 +485,6 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         // Headroom for the shared reasoning+answer budget (like the DeepSeek entries), sized
         // at 2x default rather than DeepSeek's 65536 to bound worst-case latency on a slow model.
         maxOutputTokens: 16384,
-        tags: ['slow'],
     },
     // GLM-5.3-Flash (added 2026-08-30): the cheap sibling. Same API contract as GLM-5.3 —
     // thinking cannot be disabled and reasoning_effort takes low|high|max only
@@ -564,7 +567,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         // the 3.7 models (verified live) — add it to their entries if they ever need taming.
         thinkingBudgetTokens: 1024,
         // Capped it measures 25-26s → the >25s tier.
-        tags: ['very-slow'],
+        tags: ['slow'],
     },
     // qwen3.8-flash replaced qwen3.7-flash on 2026-08-30 (same 1M context, 128k max output);
     // qwen3.7-plus was retired the same day — persisted 'qwen-plus' ids resolve to this entry
@@ -593,8 +596,8 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // 1.7s and the 8-character scene (363 output tokens) in 2.4s — ~150 tok/s, the fastest
     // provider in the sweep that day (Kimi Highspeed's scene takes 8s); a 3.2k-token game
     // prompt with a two-sentence JSON reply took 1.9-2.1s at every effort level vs 3.5s for M3.
-    // Tagged `fast` rather than `very-fast`: the sweep straddles the 3s line and production
-    // turns carry 10k+ tokens of context. Launched 2026-09-27 as Token-Plan-only (the
+    // Production 2026-11-03 (1,271 bot turns): p50 4.8s but p90 16.0s, so no speed tag (see
+    // the grading above; it was `fast` on the sweep). Launched 2026-09-27 as Token-Plan-only (the
     // 2026-10-02 probe got `unknown model` on the pay-as-you-go key); on the key since at
     // least 2026-10-27.
     [LLM_CONSTANTS.MINIMAX]: {
@@ -603,7 +606,7 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         apiKeyName: API_KEY_CONSTANTS.MINIMAX,
         hasThinking: true,
         reasoningEffort: 'medium',
-        tags: ['fast', 'cheap'],
+        tags: ['cheap'],
     },
 
     // Meta Muse Spark 1.3 (added 2026-09-12) on Meta's own Model API — Standard tier, i.e.
@@ -614,8 +617,8 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // game default: turns are short and every reasoning token bills as output.
     // Temperature: Meta documents the model as tuned to its 1.0 default.
     // Speed: measured 2026-09-12 at medium effort — 9.6s on a full-context day-2 vote, 4-8s on
-    // short turns (reasoning ≈ 90% of output tokens). That is the untagged middle band by the
-    // grading above; tagged 'slow' anyway by decision so players expect a wait. Price-wise it
+    // short turns (reasoning ≈ 90% of output tokens). Prod 2026-11-03: p50 10.5s, p90 24.6s,
+    // which is `slow` by the grading above. Price-wise it
     // is neither cheap nor expensive.
     [LLM_CONSTANTS.MUSE_SPARK]: {
         displayName: 'Muse Spark 1.3',
