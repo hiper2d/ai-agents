@@ -97,10 +97,44 @@ describe('prompt cache tiers', () => {
         expect(usage.inputTokens).toBe(4600);
         expect(usage.outputTokens).toBe(200);
         expect(usage.totalTokens).toBe(4800);
-        // Sonnet 5: $2/M input, $10/M output, $0.20/M cached.
-        // (600 uncached+written) * 2 + 4000 cached * 0.20 + 200 out * 10, per million.
-        const expected = (600 * 2.0 + 4000 * 0.20 + 200 * 10.0) / 1_000_000;
+        expect(usage.cachedInputTokens).toBe(4000);
+        expect(usage.cacheWriteTokens).toBe(500);
+        // Sonnet: $2/M input, $10/M output, $0.20/M cached; the 500 written at the agent's
+        // default 1h TTL bill at 2x input. 100 uncached * 2 + 500 * 4 + 4000 * 0.20 + 200 * 10.
+        const expected = (100 * 2.0 + 500 * 4.0 + 4000 * 0.20 + 200 * 10.0) / 1_000_000;
         expect(usage.costUSD).toBeCloseTo(expected, 10);
+    });
+
+    it('ClaudeAgent bills cache writes by the TTL split the API reports', () => {
+        const agent = new ClaudeAgent('Mira', 'instruction', SONNET, 'test-key');
+        const usage = (agent as any).buildTokenUsage({
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 1000,
+            cache_creation: { ephemeral_1h_input_tokens: 600, ephemeral_5m_input_tokens: 400 },
+        });
+        expect(usage.costUSD).toBeCloseTo((600 * 2.0 * 2 + 400 * 2.0 * 1.25) / 1_000_000, 10);
+    });
+
+    it("ClaudeAgent with cacheTtl 'off' places no breakpoint anywhere", () => {
+        const agent = new ClaudeAgent('Mira', assistantPrompt(), SONNET, 'test-key');
+        agent.cacheTtl = 'off';
+        const system = (agent as any).defaultParams.system;
+        expect(system).toHaveLength(2);
+        for (const block of system) {
+            expect(block.cache_control).toBeUndefined();
+        }
+        const messages = [
+            { role: 'user', content: 'first prompt' },
+            { role: 'assistant', content: 'reply' },
+            { role: 'user', content: 'current prompt' },
+        ];
+        (agent as any).applyCacheBreakpoint(messages);
+        expect(messages.map(m => typeof m.content)).toEqual(['string', 'string', 'string']);
+        const usage = (agent as any).buildTokenUsage({ input_tokens: 1000, output_tokens: 0 });
+        expect(usage.costUSD).toBeCloseTo(1000 * 2.0 / 1_000_000, 10);
+        expect(usage.cacheWriteTokens).toBeUndefined();
     });
 
     it('default prepareMessages merges consecutive user messages; ClaudeAgent keeps them apart', () => {

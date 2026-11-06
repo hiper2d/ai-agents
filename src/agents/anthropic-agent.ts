@@ -18,6 +18,11 @@ interface ThinkingBlock {
 }
 
 type CacheTtl = '5m' | '1h';
+/** Prompt-cache setting for a ClaudeAgent: a TTL for every breakpoint, or 'off' for none. */
+export type ClaudeCacheMode = CacheTtl | 'off';
+
+/** Anthropic bills a cache write at a multiple of the input rate, by TTL. */
+const CACHE_WRITE_MULTIPLIER: Record<CacheTtl, number> = { '5m': 1.25, '1h': 2 };
 
 /**
  * Models that reject `thinking: {type: "disabled"}` with a 400 and can only run adaptive.
@@ -63,16 +68,23 @@ interface AnthropicMessage {
 export class ClaudeAgent extends AbstractAgent {
     private readonly client: Anthropic;
     /**
-     * TTL for every breakpoint this agent places (system tiers and the message anchor).
-     * Anthropic bills a 5m write at 1.25x input, a 1h write at 2x, reads at 0.1x, and a read
-     * refreshes the timer on either TTL. Default '1h' because the main consumer runs at human
-     * pace: consecutive calls for one agent measured 12-78 minutes apart, so 5m entries
-     * expired before they were ever read (0-16% hit rate over 30 days, hits only on gaps
-     * under five minutes). Set '5m' for continuous traffic where every call lands inside the
-     * window; there the cheaper write wins. One knob for all breakpoints on purpose: Anthropic
+     * TTL for every breakpoint this agent places (system tiers and the message anchor), or
+     * 'off' to place none. Anthropic bills a 5m write at 1.25x input, a 1h write at 2x, reads
+     * at 0.1x, and a read refreshes the timer on either TTL; with no breakpoint every token is
+     * plain 1x input (Claude has no implicit caching). Caching pays only when enough of what
+     * is written gets read back: break-even is ~22% of the prompt read at 5m and ~53% at 1h.
+     * Measured on Werewolf (human-paced, consecutive calls for one bot 12-78 minutes apart):
+     * 5m read 0-16% back, 1h 42-43% over 30 days of production bot turns (2026-11-06) — both
+     * cost more than no cache, so that host sets 'off'. Default '1h' for continuous traffic
+     * where calls land inside the window. One knob for all breakpoints on purpose: Anthropic
      * requires 1h entries to precede 5m ones, and a single TTL keeps that trivially true.
      */
-    cacheTtl: CacheTtl = '1h';
+    cacheTtl: ClaudeCacheMode = '1h';
+
+    /** The cache_control to attach to a breakpoint, or none when caching is off. */
+    private get cacheControl(): { cache_control: { type: 'ephemeral'; ttl: CacheTtl } } | Record<string, never> {
+        return this.cacheTtl === 'off' ? {} : { cache_control: { type: 'ephemeral', ttl: this.cacheTtl } };
+    }
     // System-prompt breakpoints, one per cache tier (see CACHE_TIER_MARKER):
     //   block 1 - shared static rules, byte-identical across all bots and games with the
     //             same rule set. Caches are scoped per model, so one entry serves every bot
@@ -89,7 +101,7 @@ export class ClaudeAgent extends AbstractAgent {
         return {
             max_tokens: this.maxOutputTokens,
             system: this.instructionParts.map(part => (
-                { type: 'text' as const, text: part, cache_control: { type: 'ephemeral' as const, ttl: this.cacheTtl } }
+                { type: 'text' as const, text: part, ...this.cacheControl }
             )),
             model: this.model,
         };
@@ -222,6 +234,9 @@ export class ClaudeAgent extends AbstractAgent {
      * which for us is exactly the never-repeated tail — every entry it wrote would be dead.
      */
     private applyCacheBreakpoint(messages: AnthropicMessage[]): void {
+        if (this.cacheTtl === 'off') {
+            return;
+        }
         if (messages.length < 2) {
             return; // one-shot call: system-prompt breakpoint still applies
         }
@@ -246,9 +261,11 @@ export class ClaudeAgent extends AbstractAgent {
      * Builds TokenUsage from the response. Anthropic's input_tokens EXCLUDES cached tokens
      * (total prompt = input_tokens + cache_read + cache_creation), unlike the OpenAI-shaped
      * providers whose prompt_tokens include them — so reconstruct the full prompt size here
-     * before pricing. Cache reads bill at the cacheHitPrice (~0.1x); cache writes bill at
-     * 1.25x input, which MODEL_PRICING doesn't model, so written tokens are priced at the
-     * plain input rate (~20% undercount on the written span only).
+     * before pricing. Cache reads bill at the cacheHitPrice (~0.1x). Cache writes bill at a
+     * multiple of input by TTL (1.25x for 5m, 2x for 1h); MODEL_PRICING has no write rate, so
+     * the premium is added on top at the call's effective input rate (which keeps any
+     * long-context tier). Until 0.33.0 writes were priced at plain input, under-reporting
+     * every 1h write by half.
      */
     private buildTokenUsage(usage: Anthropic.Messages.Usage): TokenUsage {
         const cacheReadTokens = usage.cache_read_input_tokens ?? 0;
@@ -256,7 +273,16 @@ export class ClaudeAgent extends AbstractAgent {
         const uncachedInputTokens = usage.input_tokens || 0;
         const inputTokens = uncachedInputTokens + cacheReadTokens + cacheWriteTokens;
         const outputTokens = usage.output_tokens || 0;
-        const cost = calculateAnthropicCost(this.model, inputTokens, outputTokens, cacheReadTokens);
+        let cost = calculateAnthropicCost(this.model, inputTokens, outputTokens, cacheReadTokens);
+
+        if (cacheWriteTokens > 0) {
+            // Split by TTL when the API reports it; otherwise every write used this agent's TTL.
+            const byTtl = usage.cache_creation;
+            const written1h = byTtl ? byTtl.ephemeral_1h_input_tokens ?? 0 : (this.cacheTtl === '1h' ? cacheWriteTokens : 0);
+            const written5m = byTtl ? byTtl.ephemeral_5m_input_tokens ?? 0 : cacheWriteTokens - written1h;
+            const inputRate = inputTokens > 0 ? calculateAnthropicCost(this.model, inputTokens, 0, 0) / inputTokens : 0;
+            cost += inputRate * (written1h * (CACHE_WRITE_MULTIPLIER['1h'] - 1) + written5m * (CACHE_WRITE_MULTIPLIER['5m'] - 1));
+        }
 
         if (cacheReadTokens > 0 || cacheWriteTokens > 0) {
             this.logger(`💾 Prompt cache: ${cacheReadTokens} read, ${cacheWriteTokens} written, ${uncachedInputTokens} uncached`);
@@ -267,8 +293,9 @@ export class ClaudeAgent extends AbstractAgent {
             outputTokens,
             totalTokens: inputTokens + outputTokens,
             costUSD: cost,
-            // Cache reads only — writes are a billing premium, not reuse of prior context.
-            ...(cacheReadTokens > 0 ? { cachedInputTokens: cacheReadTokens } : {})
+            // Breakdowns of inputTokens, omitted when zero (Firestore rejects undefined).
+            ...(cacheReadTokens > 0 ? { cachedInputTokens: cacheReadTokens } : {}),
+            ...(cacheWriteTokens > 0 ? { cacheWriteTokens } : {})
         };
     }
 

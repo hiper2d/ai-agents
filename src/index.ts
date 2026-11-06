@@ -92,6 +92,7 @@ export { AbstractAgent, setBeforeAskHook, setRetryHook } from './agents/abstract
 export type { BeforeAskHook, RetryHook, RetrySettledFn } from './agents/abstract-agent';
 export { AgentFactory } from './agents/agent-factory';
 export { ClaudeAgent } from './agents/anthropic-agent';
+export type { ClaudeCacheMode } from './agents/anthropic-agent';
 export { Gpt5Agent } from './agents/gpt-5-agent';
 export { GoogleAgent } from './agents/google-agent';
 export { MistralAgent } from './agents/mistral-agent';

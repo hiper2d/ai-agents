@@ -33,6 +33,9 @@ export interface TokenUsage {
     // is a breakdown of inputTokens (already reflected in costUSD), omitted when the
     // provider reported nothing.
     cachedInputTokens?: number;
+    // Input tokens written to the prompt cache (Anthropic explicit caching). A breakdown of
+    // inputTokens; the write premium is already in costUSD. Omitted when nothing was written.
+    cacheWriteTokens?: number;
     // Wall-clock duration of the API call, stamped by AbstractAgent's public ask wrappers.
     // Client-measured — providers don't return processing time — so it includes network,
     // which is what the player actually waits through. Omitted when not measured.
