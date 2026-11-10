@@ -56,7 +56,7 @@ describeLive('ClaudeAgent (live)', () => {
         expect(response.reply.length).toBeGreaterThan(0);
     }, 60000);
 
-    it('Fable 5.1 answers a schema-validated ask (always-on adaptive thinking, effort control)', async () => {
+    it('Fable 5.2 answers a schema-validated ask (always-on adaptive thinking, effort control)', async () => {
         // Simple prompt on purpose: Fable's safety layer refuses some of the game fixtures
         // (see all-providers.live), so this pins the model id + request shape, not the fixtures.
         const agent = makeAgent(LLM_CONSTANTS.CLAUDE_FABLE, true);

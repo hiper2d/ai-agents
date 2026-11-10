@@ -161,10 +161,11 @@ export interface ModelConfig {
 }
 
 export const SupportedAiModels: Record<string, ModelConfig> = {
-    // Claude Fable 5.1 (2026-09-02, was Fable 5) - frontier reasoning model. Thinking is always on (no non-thinking variant).
+    // Claude Fable 5.2 (2026-11-10, was 5.1 since 2026-09-02, Fable 5 before) - frontier reasoning model.
+    // Thinking is always on (no non-thinking variant). Id verified against GET /v1/models.
     [LLM_CONSTANTS.CLAUDE_FABLE]: {
-        displayName: 'Claude Fable 5.1',
-        modelApiName: 'claude-fable-5-1',
+        displayName: 'Claude Fable 5.2',
+        modelApiName: 'claude-fable-5-2',
         apiKeyName: API_KEY_CONSTANTS.ANTHROPIC,
         hasThinking: true,
         reasoningEffort: 'high',
@@ -886,6 +887,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     [SupportedAiModels[LLM_CONSTANTS.CLAUDE_FABLE].modelApiName]: {
         // Full 1M context window at standard pricing (no extended-context premium).
         // Fable 5.1 (2026-09-02): same $10/$50 as Fable 5, but cache reads dropped to $0.25/MTok.
+        // Fable 5.2 (2026-11-10): same prices as 5.1.
         inputPrice: 10.0,
         outputPrice: 50.0,
         cacheHitPrice: 0.25

@@ -41,7 +41,7 @@ describe('ClaudeAgent thinking params', () => {
         ['claude-sonnet-5-5', { type: 'between_tools' }],
         ['claude-haiku-5-5', { type: 'disabled' }],
         ['claude-opus-5-5', undefined],
-        ['claude-fable-5-1', undefined],
+        ['claude-fable-5-2', undefined],
     ])('thinking off on %s sends %j on both paths', async (model, expected) => {
         const calls = await paramsFor(model, false);
         expect(calls).toHaveLength(2);
