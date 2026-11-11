@@ -887,10 +887,11 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     [SupportedAiModels[LLM_CONSTANTS.CLAUDE_FABLE].modelApiName]: {
         // Full 1M context window at standard pricing (no extended-context premium).
         // Fable 5.1 (2026-09-02): same $10/$50 as Fable 5, but cache reads dropped to $0.25/MTok.
-        // Fable 5.2 (2026-11-10): same prices as 5.1.
-        inputPrice: 10.0,
-        outputPrice: 50.0,
-        cacheHitPrice: 0.25
+        // Fable 5.2 (2026-11-10): $8/$40, cache reads $0.20 (pricing page, 2026-11-11) — 20% under
+        // 5.1's $10/$50/$0.25. Cache writes $10 (5m) / $16 (1h) = the usual 1.25x / 2x of input.
+        inputPrice: 8.0,
+        outputPrice: 40.0,
+        cacheHitPrice: 0.20
     },
     [SupportedAiModels[LLM_CONSTANTS.CLAUDE_OPUS].modelApiName]: {
         // Opus 5.5 (2026-09-22): $4/$20, down from Opus 5's $5/$25. Cache reads are 5% of input
