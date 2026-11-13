@@ -28,6 +28,27 @@ export const API_KEY_CONSTANTS = {
     META: 'META_API_KEY'
 } as const;
 
+/**
+ * Providers whose API ENFORCES a JSON schema on the answer (askWithZodSchema sends the
+ * schema natively and the provider constrains the output to it). The rest only get the
+ * schema described in the prompt: Grok, GLM and Fugu run in "JSON object" mode (valid JSON,
+ * any shape), DeepSeek and MiniMax have no JSON mode on these calls at all. Meta is listed
+ * although its json_schema runs with strict: false (the shape is guided, not guaranteed).
+ * Hosts use this to decide where a schema can replace a plain-text ask: on most enforcing
+ * providers the prompt cache is keyed on the output format, so a host that mixes text and
+ * schema calls loses the cache between them (measured 2026-11-12 on OpenAI, Mistral and
+ * Gemini: 0% cached on a text reply → schema vote, 77-83% with one schema on both).
+ */
+export const SCHEMA_ENFORCING_API_KEYS: ReadonlySet<string> = new Set([
+    API_KEY_CONSTANTS.OPENAI,
+    API_KEY_CONSTANTS.ANTHROPIC,
+    API_KEY_CONSTANTS.GOOGLE,
+    API_KEY_CONSTANTS.MISTRAL,
+    API_KEY_CONSTANTS.QWEN,
+    API_KEY_CONSTANTS.MOONSHOT,
+    API_KEY_CONSTANTS.META,
+]);
+
 export const SupportedAiKeyNames: Record<string, string> = {
     [API_KEY_CONSTANTS.OPENAI]: 'OpenAI',
     [API_KEY_CONSTANTS.ANTHROPIC]: 'Anthropic',
@@ -1204,4 +1225,10 @@ export function getProviderSignatureFields(aiType: string, signature?: string): 
 
     // Other providers don't support signatures, return empty
     return {};
+}
+
+/** Whether the provider behind a catalog model enforces a JSON schema on the answer (see SCHEMA_ENFORCING_API_KEYS). Unknown ids: false. */
+export function enforcesSchema(modelId: string): boolean {
+    const config = SupportedAiModels[modelId];
+    return !!config && SCHEMA_ENFORCING_API_KEYS.has(config.apiKeyName);
 }
