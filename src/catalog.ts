@@ -149,7 +149,7 @@ export interface ModelConfig {
     // agent clamps the value to the nearest level its API takes before sending. So a catalog
     // pin or a per-call override can use any level; prefer one the model natively supports
     // (Anthropic adaptive low|medium|high|xhigh|max, OpenAI minimal|low|medium|high|xhigh,
-    // Gemini 3.x minimal|low|medium|high — 3.1 Pro and 3.7/3.8 Flash reject 'minimal' —, Fugu
+    // Gemini 3.x minimal|low|medium|high — 3.1 Pro, Argon and Hydrogen reject 'minimal' —, Fugu
     // high|xhigh|max, GLM-5.3 and DeepSeek V4 low|high|max).
     reasoningEffort?: ReasoningEffort; // Effort-based APIs (Anthropic adaptive thinking, Gemini 3.x)
     thinkingBudgetTokens?: number; // Budget-based APIs (Anthropic enabled thinking, Qwen thinking_budget)
@@ -341,14 +341,27 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
         tags: ['expensive'],
     },
     [LLM_CONSTANTS.GEMINI_FLASH]: {
-        // Repointed 3.6 → 3.7 (2026-08-13) → 3.8 (2026-09-02); stable picker id, same pattern as gpt.
-        // 3.7 rejected thinkingLevel 'minimal' (low|medium|high only), unlike 3.5/3.6 — 3.8 untested
-        // on 'minimal', so keep the pin at 'medium' or above.
-        displayName: 'Gemini 3.8 Flash',
-        modelApiName: 'gemini-3.8-flash',
+        // Repointed 3.6 → 3.7 (2026-08-13) → 3.8 (2026-09-02) → Gemini 4 Hydrogen (2026-11-12);
+        // stable picker id, same pattern as gpt — the slot keeps the name `gemini-flash` although
+        // Google dropped "Flash" from the model's name. Id verified against GET /v1beta/models
+        // (1M in / 65K out). Accepts low|medium|high, rejects 'minimal' (400, probed — as did
+        // 3.7 and 3.8 Flash).
+        // Pinned 'low' (3.8 Flash ran 'medium'): Hydrogen is twice the price and thinks about
+        // twice as much per level. Werewolf day-2 vote fixture, 3 runs a level, 2026-11-12:
+        //   Hydrogen low     3.4-3.9s   211-263 thinking tokens   0.58-0.60¢
+        //   Hydrogen medium  5.4-6.7s   528-761                   0.81-0.98¢
+        //   Hydrogen high    6.4-7.8s   839-1175                  1.03-1.29¢
+        //   3.8 Flash medium 5.1-7.1s   203-315                   0.29-0.34¢
+        //   3.8 Flash low    2.1-2.3s   0                         0.21¢
+        // So 'low' is the level that thinks as much as the model it replaces did, a little
+        // faster, at twice the cost instead of three times; every run named the same vote target
+        // with a reason as specific. No `temperature` (see the Pro note). No speed tag until it
+        // has 100+ production turns (3.8 Flash had none: p50 9.9s).
+        displayName: 'Gemini 4 Hydrogen',
+        modelApiName: 'gemini-4-hydrogen',
         apiKeyName: API_KEY_CONSTANTS.GOOGLE,
         hasThinking: true,
-        reasoningEffort: 'medium',
+        reasoningEffort: 'low',
     },
     [LLM_CONSTANTS.GEMINI_LITE]: {
         displayName: 'Gemini 3.5 Flash Lite',
@@ -941,13 +954,12 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
         extendedContextThresholdTokens: 200_000
     },
     [SupportedAiModels[LLM_CONSTANTS.GEMINI_FLASH].modelApiName]: {
-        // 3.8 Flash (2026-09-02) launched at the same rates as 3.7. 3.7's launch pricing was
-        // scheduled to double to $1.50/$7.50/$0.15 on 2027-01-01 (ai.google.dev pricing page,
-        // fetched 2026-08-13) — ACTION NEEDED then: re-check whether 3.8 follows and update.
-        // Cache storage cost ($0.50 / 1M tokens per hour) is not tracked here — the
-        // schema only models per-token call costs, not time-based storage.
-        inputPrice: 0.75,
-        outputPrice: 3.75,
+        // Gemini 4 Hydrogen (ai.google.dev pricing page, Standard tier, read 2026-11-12): one
+        // flat tier, twice the input and output rates of the 3.8 Flash it replaced
+        // ($0.75 / $3.75) with the same $0.075 cached rate (5% of input, as on Argon). Implicit
+        // caching only — explicit caching is not supported, so there is no storage cost.
+        inputPrice: 1.50,
+        outputPrice: 7.50,
         cacheHitPrice: 0.075
     },
     [SupportedAiModels[LLM_CONSTANTS.GEMINI_LITE].modelApiName]: {

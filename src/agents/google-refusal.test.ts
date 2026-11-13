@@ -82,7 +82,9 @@ describe('GoogleAgent sampling parameters', () => {
     }
 
     it('sends no temperature for Gemini 3.6+ (deprecated, future models reject it), on both ask paths', async () => {
-        const { agent, calls } = capturing('gemini-3.8-flash');
+        // Argon, not the gemini-flash slot: its catalog pin ('medium') differs from the agent's
+        // fallback level ('low'), so the level assertion proves the pin is what reaches the wire.
+        const { agent, calls } = capturing('gemini-4-argon');
         await agent.askText(MESSAGES);
         await agent.askWithZodSchema(ReplySchema, MESSAGES);
         for (const req of calls) {

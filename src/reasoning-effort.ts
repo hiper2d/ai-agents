@@ -13,7 +13,7 @@ import type { ReasoningEffort } from './catalog';
  * Verified against provider docs 2026-08-30:
  * - OpenAI GPT-5.x: minimal|low|medium|high|xhigh
  * - Anthropic adaptive thinking (Fable 5 / Opus 4.8 / Sonnet 5): low|medium|high|xhigh|max
- * - Gemini 3.x thinkingLevel: minimal|low|medium|high (3.1 Pro and 3.7 Flash reject minimal)
+ * - Gemini 3.x thinkingLevel: minimal|low|medium|high (3.1 Pro, 4 Argon and 4 Hydrogen reject minimal)
  * - Z.AI GLM-5.3 / 5.3-Flash: low|high|max only
  * - DeepSeek V4: low|high|max (the API itself aliases medium → high)
  * - Sakana Fugu (verified live 2026-09-20): high|xhigh|max on every model ("low" → 400 naming

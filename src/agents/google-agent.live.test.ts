@@ -50,7 +50,7 @@ describeLive('GoogleAgent (live)', () => {
         expect(tokenUsage!.totalTokens).toBeGreaterThanOrEqual(tokenUsage!.inputTokens + tokenUsage!.outputTokens);
     }, 60000);
 
-    it('Flash answers a schema-validated ask', async () => {
+    it('Hydrogen (the gemini-flash slot) answers a schema-validated ask', async () => {
         const agent = makeAgent(LLM_CONSTANTS.GEMINI_FLASH);
         const [response] = await agent.askWithZodSchema(ReplySchema, sampleHistory());
 
