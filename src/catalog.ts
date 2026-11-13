@@ -32,8 +32,9 @@ export const API_KEY_CONSTANTS = {
  * Providers whose API ENFORCES a JSON schema on the answer (askWithZodSchema sends the
  * schema natively and the provider constrains the output to it). The rest only get the
  * schema described in the prompt: Grok, GLM and Fugu run in "JSON object" mode (valid JSON,
- * any shape), DeepSeek and MiniMax have no JSON mode on these calls at all. Meta is listed
- * although its json_schema runs with strict: false (the shape is guided, not guaranteed).
+ * any shape), DeepSeek and MiniMax have no JSON mode on these calls at all, and Meta's
+ * json_schema runs with strict: false (the shape is guided, not guaranteed; a 2026-11-12
+ * probe also read 0% of a repeated prompt from cache there, so there is nothing to gain).
  * Hosts use this to decide where a schema can replace a plain-text ask: on most enforcing
  * providers the prompt cache is keyed on the output format, so a host that mixes text and
  * schema calls loses the cache between them (measured 2026-11-12 on OpenAI, Mistral and
@@ -46,7 +47,6 @@ export const SCHEMA_ENFORCING_API_KEYS: ReadonlySet<string> = new Set([
     API_KEY_CONSTANTS.MISTRAL,
     API_KEY_CONSTANTS.QWEN,
     API_KEY_CONSTANTS.MOONSHOT,
-    API_KEY_CONSTANTS.META,
 ]);
 
 export const SupportedAiKeyNames: Record<string, string> = {

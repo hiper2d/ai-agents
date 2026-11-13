@@ -25,10 +25,10 @@ describe('catalog conventions', () => {
 describe('enforcesSchema', () => {
     it('is true for providers that take a native JSON schema and false for the rest', () => {
         const { enforcesSchema, LLM_CONSTANTS } = require('./catalog');
-        for (const id of [LLM_CONSTANTS.GPT, LLM_CONSTANTS.CLAUDE_HAIKU, LLM_CONSTANTS.GEMINI_FLASH, LLM_CONSTANTS.MISTRAL_SMALL, LLM_CONSTANTS.QWEN_FLASH, LLM_CONSTANTS.KIMI, LLM_CONSTANTS.MUSE_SPARK]) {
+        for (const id of [LLM_CONSTANTS.GPT, LLM_CONSTANTS.CLAUDE_HAIKU, LLM_CONSTANTS.GEMINI_FLASH, LLM_CONSTANTS.MISTRAL_SMALL, LLM_CONSTANTS.QWEN_FLASH, LLM_CONSTANTS.KIMI]) {
             expect(enforcesSchema(id)).toBe(true);
         }
-        for (const id of [LLM_CONSTANTS.DEEPSEEK_FLASH, LLM_CONSTANTS.MINIMAX, LLM_CONSTANTS.GROK, LLM_CONSTANTS.GLM, LLM_CONSTANTS.FUGU_MAX, 'no-such-model']) {
+        for (const id of [LLM_CONSTANTS.MUSE_SPARK, LLM_CONSTANTS.DEEPSEEK_FLASH, LLM_CONSTANTS.MINIMAX, LLM_CONSTANTS.GROK, LLM_CONSTANTS.GLM, LLM_CONSTANTS.FUGU_MAX, 'no-such-model']) {
             expect(enforcesSchema(id)).toBe(false);
         }
     });
