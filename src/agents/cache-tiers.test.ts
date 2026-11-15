@@ -85,6 +85,26 @@ describe('prompt cache tiers', () => {
         expect(typeof messages[3].content).toBe('string'); // tail untouched
     });
 
+    it("ClaudeAgent with cacheAnchor 'last' anchors the breakpoint on the final message", () => {
+        const agent = new ClaudeAgent('Mira', 'instruction', SONNET, 'test-key');
+        agent.cacheAnchor = 'last';
+        const messages = [
+            { role: 'user', content: 'first prompt' },
+            { role: 'assistant', content: 'reply' },
+            { role: 'user', content: 'current prompt with its replayed tail' },
+        ];
+        (agent as any).applyCacheBreakpoint(messages);
+        const single = [{ role: 'user', content: 'the first call of a day' }];
+        (agent as any).applyCacheBreakpoint(single);
+        expect(single[0].content).toEqual([
+            { type: 'text', text: 'the first call of a day', cache_control: { type: 'ephemeral', ttl: '1h' } },
+        ]);
+        expect(typeof messages[1].content).toBe('string');
+        expect(messages[2].content).toEqual([
+            { type: 'text', text: 'current prompt with its replayed tail', cache_control: { type: 'ephemeral', ttl: '1h' } },
+        ]);
+    });
+
     it('ClaudeAgent reconstructs full prompt size from cache fields and bills hits at the cached rate', () => {
         const agent = new ClaudeAgent('Mira', 'instruction', SONNET, 'test-key');
         // Anthropic's input_tokens EXCLUDES cached tokens: total prompt = 100 + 4000 + 500.

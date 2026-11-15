@@ -81,6 +81,16 @@ export class ClaudeAgent extends AbstractAgent {
      */
     cacheTtl: ClaudeCacheMode = '1h';
 
+    /**
+     * Which message carries the message breakpoint (see applyCacheBreakpoint).
+     * 'previous' (default): the second-to-last message, for hosts whose final message carries
+     * content they never send again (an unsaved reminder) - a breakpoint there would only pay
+     * the write. 'last': the final message, for hosts that replay every request in full on the
+     * next one (Werewolf since 2026-11-15 stores its turn tail and replays it), so the whole
+     * request is written and the next call reads all of it.
+     */
+    cacheAnchor: 'previous' | 'last' = 'previous';
+
     /** The cache_control to attach to a breakpoint, or none when caching is off. */
     private get cacheControl(): { cache_control: { type: 'ephemeral'; ttl: CacheTtl } } | Record<string, never> {
         return this.cacheTtl === 'off' ? {} : { cache_control: { type: 'ephemeral', ttl: this.cacheTtl } };
@@ -230,6 +240,9 @@ export class ClaudeAgent extends AbstractAgent {
      * reply, or an earlier flushed block) reappears verbatim next turn, where the moved-
      * forward breakpoint finds it via the 20-block lookback.
      *
+     * With `cacheAnchor = 'last'` the host says its final message IS replayed, and the
+     * breakpoint goes on the last message instead.
+     *
      * NOT the top-level auto-caching mode: that mode targets the LAST cacheable block,
      * which for us is exactly the never-repeated tail — every entry it wrote would be dead.
      */
@@ -237,10 +250,11 @@ export class ClaudeAgent extends AbstractAgent {
         if (this.cacheTtl === 'off') {
             return;
         }
-        if (messages.length < 2) {
-            return; // one-shot call: system-prompt breakpoint still applies
+        const back = this.cacheAnchor === 'last' ? 1 : 2;
+        if (messages.length < back) {
+            return; // nothing to anchor on: the system-prompt breakpoint still applies
         }
-        const anchor = messages[messages.length - 2];
+        const anchor = messages[messages.length - back];
         if (typeof anchor.content === 'string') {
             if (anchor.content.length > 0) {
                 anchor.content = [{ type: 'text', text: anchor.content, cache_control: { type: 'ephemeral', ttl: this.cacheTtl } }];
