@@ -123,8 +123,20 @@ export abstract class AbstractAgent {
      * invalidResponseRetries policy. Subclasses implement doAskWithZodSchema/doAskText and
      * must NOT override these.
      */
-    async askWithZodSchema<T>(zodSchema: z.ZodSchema<T>, messages: AIMessage[]): Promise<[T, string, TokenUsage?, string?]> {
-        return this.askWithRetries(() => this.doAskWithZodSchema(zodSchema, messages));
+    /**
+     * `reject` is the host's own check on a schema-valid answer: return why it is unusable
+     * (a required field left as an empty string, say) and the answer is treated exactly like
+     * a malformed one: a ModelInvalidResponseError, re-sent under invalidResponseRetries.
+     * It exists because a check written into the zod schema would change the JSON schema
+     * the provider sees.
+     */
+    async askWithZodSchema<T>(zodSchema: z.ZodSchema<T>, messages: AIMessage[], reject?: (answer: T) => string | null | undefined): Promise<[T, string, TokenUsage?, string?]> {
+        return this.askWithRetries(async () => {
+            const result = await this.doAskWithZodSchema(zodSchema, messages);
+            const reason = reject?.(result[0]);
+            if (reason) throw new ModelInvalidResponseError(this.model, reason);
+            return result;
+        });
     }
 
     async askText(messages: AIMessage[]): Promise<[string, string, TokenUsage?, string?]> {

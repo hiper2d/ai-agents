@@ -114,4 +114,25 @@ describe('invalidResponseRetries', () => {
         await agent.askText(MESSAGES);
         expect(guarded).toBe(2);
     });
+
+    it('a schema-valid answer the host rejects is re-sent like a malformed one', async () => {
+        const schema = z.object({ reply: z.string() });
+        const reject = (a: { reply: string }) => a.reply.trim() ? null : 'the reply is an empty string';
+
+        const second = new ScriptedAgent([{ ok: '' }, { ok: 'now with words' }], 1);
+        const [result] = await second.askWithZodSchema(schema, MESSAGES, reject);
+        expect(result).toEqual({ reply: 'now with words' });
+        expect(second.calls).toBe(2);
+
+        const never = new ScriptedAgent([{ ok: ' ' }], 1);
+        const error = await never.askWithZodSchema(schema, MESSAGES, reject).catch(e => e);
+        expect(error).toBeInstanceOf(ModelInvalidResponseError);
+        expect(error.message).toContain('the reply is an empty string');
+        expect(error.retries).toBe(1);
+        expect(never.calls).toBe(2);
+
+        const accepted = new ScriptedAgent([{ ok: 'fine' }], 1);
+        await accepted.askWithZodSchema(schema, MESSAGES, reject);
+        expect(accepted.calls).toBe(1);
+    });
 });
