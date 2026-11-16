@@ -59,7 +59,7 @@ describe('QwenAgent request shape', () => {
   });
 
   it('a per-instance budget override replaces the catalog budget', async () => {
-    const { agent, captured } = makeAgent(jsonCompletion, 'qwen3.8-max');
+    const { agent, captured } = makeAgent(jsonCompletion, 'qwen4-max');
     agent.thinkingBudgetTokens = 8192;
     agent.reasoningEffort = 'high'; // ignored on Qwen
     await agent.askWithZodSchema(ReplySchema, MESSAGES);

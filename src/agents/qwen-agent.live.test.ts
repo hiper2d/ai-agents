@@ -2,7 +2,7 @@
  * Live suite for the Qwen agent (QwenCloud OpenAI-compatible endpoint). Real calls; skips
  * itself when QWEN_API_KEY is missing. What it pins:
  * - strict `json_schema` structured output is accepted WITH thinking on and the reasoning
- *   trace still arrives, on both catalog models (qwen3.8-flash, qwen3.8-max). Until 0.15.0 we
+ *   trace still arrives, on both catalog models (qwen3.8-flash, qwen4-max since 2026-11-16). Until 0.15.0 we
  *   sent no response_format on the belief that thinking mode rejects it, and qwen3.8-flash
  *   once answered a werewolf vote in character prose instead of JSON
  * - a roleplay-heavy vote prompt comes back as the schema, every field present, on repeated

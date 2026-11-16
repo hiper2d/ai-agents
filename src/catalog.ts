@@ -592,16 +592,25 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // Speed tags from the 2026-08-05 live measurements (two samples each): plus 17.4s/14.5s,
     // flash 14.3s/16.4s (both slow); max 30.6s/100.5s — its latency tracks how long it decides
     // to think (4.2K reasoning tokens on the slow run), hence the budget cap below.
+    //
+    // `qwen-max` repointed 2026-11-16 from qwen3.8-max ($2/$6, hits $0.25) to qwen4-max
+    // ($1.50/$4.50, hits $0.075; not yet in GET /models, but the chat endpoint serves it and
+    // echoes the name). Probe on a real day-4 prompt (32K-char system prompt, ~10K tokens in,
+    // cold cache, budget 1024, one call at a time): discussion 7-9s vs 5-7s, vote 9s vs 24s
+    // (3.8 Max spent ~1,000 output tokens on a vote, 4 Max ~220), night action 12s vs 17s,
+    // end-of-day notes 33s vs 34s; every answer valid through the shared schema. Three
+    // identical calls sent AT ONCE timed out on both models (night action, notes) — the account
+    // under a burst, not the model. The 'slow' tag is 3.8 Max's production grade (p90 26.2s);
+    // re-grade from production turns once 4 Max has 100+.
     [LLM_CONSTANTS.QWEN_MAX]: {
-        displayName: 'Qwen3.8 Max',
-        modelApiName: 'qwen3.8-max',
+        displayName: 'Qwen4 Max',
+        modelApiName: 'qwen4-max',
         apiKeyName: API_KEY_CONSTANTS.QWEN,
         hasThinking: true,
         temperature: 0.7,
-        // Caps `thinking_budget` to bound the 30–100s latency variance. The same knob works on
-        // the 3.7 models (verified live) — add it to their entries if they ever need taming.
+        // Caps `thinking_budget` to bound the latency variance (3.8 Max swung 30–100s without
+        // it). Uncapped, 4 Max's vote went 9s → 14s.
         thinkingBudgetTokens: 1024,
-        // Capped it measures 25-26s → the >25s tier.
         tags: ['slow'],
     },
     // qwen3.8-flash replaced qwen3.7-flash on 2026-08-30 (same 1M context, 128k max output);
@@ -1039,10 +1048,11 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     // $0.016. Neither has input-length tiers (the tier column is "-" for both). These
     // published cached rates supersede the 20%-of-input rule charged before 2026-08-30; we
     // still don't send explicit cache_control.
+    // qwen4-max (2026-11-16, same page): $1.50/$4.50, implicit-cache hits $0.075, no tiers.
     [SupportedAiModels[LLM_CONSTANTS.QWEN_MAX].modelApiName]: {
-        inputPrice: 2.0,
-        outputPrice: 6.0,
-        cacheHitPrice: 0.25
+        inputPrice: 1.5,
+        outputPrice: 4.5,
+        cacheHitPrice: 0.075
     },
     [SupportedAiModels[LLM_CONSTANTS.QWEN_FLASH].modelApiName]: {
         inputPrice: 0.15,
