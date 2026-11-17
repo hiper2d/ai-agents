@@ -274,8 +274,8 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // OpenAI documents the default for Sol, Luna and the 5.6 family but never states Astra's.
     // Pinning it changes no behaviour today; it stops the default moving under us silently.
     [LLM_CONSTANTS.GPT_ASTRA]: {
-        displayName: 'GPT-6 Astra',
-        modelApiName: 'gpt-6-astra',
+        displayName: 'GPT-6.2 Astra',
+        modelApiName: 'gpt-6.2-astra',
         apiKeyName: API_KEY_CONSTANTS.OPENAI,
         reasoningEffort: 'medium',
         hasThinking: true,
@@ -293,9 +293,12 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // Terra → GPT-6.1 Terra on 2026-10-26 (id verified against GET /v1/models; gpt-5.6-terra is
     // still served). Half the price of 5.6 Terra ($2/$12 → $1/$5) and back in its place below
     // Sol. Its no-param default effort measures `medium`, like its siblings.
+    // Astra → GPT-6.2 Astra and Sol → GPT-6.2 Sol on 2026-11-17 (both ids verified against
+    // GET /v1/models; gpt-6-astra and gpt-6.1-sol are still served). Both no-param defaults
+    // measure `medium`. Astra got 20% cheaper; Sol kept its price.
     [LLM_CONSTANTS.GPT_SOL]: {
-        displayName: 'GPT-6.1 Sol',
-        modelApiName: 'gpt-6.1-sol',
+        displayName: 'GPT-6.2 Sol',
+        modelApiName: 'gpt-6.2-sol',
         apiKeyName: API_KEY_CONSTANTS.OPENAI,
         reasoningEffort: 'medium',
         hasThinking: true,
@@ -823,13 +826,16 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     // short context, $20/$75 cache-hit $2 long context. OpenAI's pricing table doesn't restate
     // the boundary; we assume the same 272k threshold as the GPT-5.6 siblings. Cache writes
     // ($12.50/$25) are not modelled — caching is automatic and we only see hits.
+    // GPT-6.2 Astra (pricing page, read 2026-11-17, both Short and Long tabs): $8/$40 cache-hit
+    // $0.40 short, $16/$60 cache-hit $0.80 long; cache writes $10/$20 (30m/12h), not modelled.
+    // The cache hit is now 5% of input, like Sol and Terra (6 Astra was 10%).
     [SupportedAiModels[LLM_CONSTANTS.GPT_ASTRA].modelApiName]: {
-        inputPrice: 10.000,
-        outputPrice: 50.000,
-        cacheHitPrice: 1.000,
-        extendedContextInputPrice: 20.000,
-        extendedContextOutputPrice: 75.000,
-        extendedContextCacheHitPrice: 2.000,
+        inputPrice: 8.000,
+        outputPrice: 40.000,
+        cacheHitPrice: 0.400,
+        extendedContextInputPrice: 16.000,
+        extendedContextOutputPrice: 60.000,
+        extendedContextCacheHitPrice: 0.800,
         extendedContextThresholdTokens: 272_000
     },
 
@@ -843,6 +849,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     // Re-read 2026-10-26 with the Terra launch: the page now lists Sol's cache hit at $0.10
     // (5% of input, the same share as Terra), not the $0.20 recorded on 2026-09-22; Astra and
     // Luna still show 10%. Followed the page.
+    // GPT-6.2 Sol (read 2026-11-17, Short and Long tabs) is priced exactly like 6.1 Sol.
     [SupportedAiModels[LLM_CONSTANTS.GPT_SOL].modelApiName]: {
         inputPrice: 2.000,
         outputPrice: 10.000,
