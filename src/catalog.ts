@@ -86,6 +86,7 @@ export const LLM_CONSTANTS = {
     GPT: 'gpt',
     GPT_MINI: 'gpt-mini',
     // Gemini 4 Argon sits above Pro; version-free id so a later Argon repoint keeps persisted ids.
+    GEMINI_NEON: 'gemini-neon',
     GEMINI_ARGON: 'gemini-argon',
     GEMINI_PRO: 'gemini-pro',
     GEMINI_FLASH: 'gemini-flash',
@@ -342,6 +343,21 @@ export const SupportedAiModels: Record<string, ModelConfig> = {
     // werewolf day-2 vote fixture took 16-34s (380-415 output tokens). At medium the same
     // prompt took 4-11s (75-110 output tokens) with the same vote target and a reason just
     // as specific — the same trade Grok 4.7 made on 2026-10-06.
+    // Gemini 4 Neon (added 2026-11-18, id verified against GET /v1beta/models): 1M in / 64K
+    // out. Same thinkingLevel dialect — accepts low|medium|high, rejects 'minimal' and 'none'
+    // (probed). Pinned LOW: it thinks even there (200-1,500 tokens a turn where Argon at medium
+    // reports none). Werewolf day-3 prompt (10.5K tokens, cold cache, 2 runs, medians):
+    // low = discussion 8.9s, vote 12.9s, night 10.7s, end-of-day notes 36s, 3.8-5.9¢ a turn;
+    // medium = 15-16s on the short turns for no visible gain; high = 21-23s, notes 51s.
+    // No `temperature` (see the Pro note). Speed tag owed until it has 100 production turns.
+    [LLM_CONSTANTS.GEMINI_NEON]: {
+        displayName: 'Gemini 4 Neon',
+        modelApiName: 'gemini-4-neon',
+        apiKeyName: API_KEY_CONSTANTS.GOOGLE,
+        hasThinking: true,
+        reasoningEffort: 'low',
+        tags: ['expensive'],
+    },
     [LLM_CONSTANTS.GEMINI_ARGON]: {
         displayName: 'Gemini 4 Argon',
         modelApiName: 'gemini-4-argon',
@@ -972,6 +988,14 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     },
 
     // Google models
+    [SupportedAiModels[LLM_CONSTANTS.GEMINI_NEON].modelApiName]: {
+        // ai.google.dev pricing page, read 2026-11-18: one flat tier over the whole 1M window
+        // (no long-context rows). Implicit caching only, cached input at 5% of input. Not on
+        // Google's free tier.
+        inputPrice: 3.0,
+        outputPrice: 15.0,
+        cacheHitPrice: 0.15
+    },
     [SupportedAiModels[LLM_CONSTANTS.GEMINI_ARGON].modelApiName]: {
         // Launch pricing (ai.google.dev pricing page, fetched 2026-10-13), one flat tier — no
         // >200K long-context rows, unlike 3.1 Pro. DOUBLES on 2026-12-01 to $4.00 / $20.00 /
